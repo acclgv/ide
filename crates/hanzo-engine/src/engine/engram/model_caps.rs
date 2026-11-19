@@ -763,13 +763,111 @@ static REGISTRY: LazyLock<Vec<ModelEntry>> = LazyLock::new(|| {
             },
         },
         ModelEntry {
-            prefix: "qwen2.5",
+            prefix: "zen6-max",
+            caps: ModelCapabilities {
+                context_window: 256_000,
+                max_output_tokens: 65_536,
+                supports_tools: true,
+                supports_vision: true,
+                supports_extended_thinking: true,
+                supports_streaming: true,
+                tokenizer: TokenizerType::O200kBase,
+                rate_limit_rpm: None,
+                provider: ModelProvider::OpenAI,
+            },
+        },
+        ModelEntry {
+            prefix: "zen6-coder",
+            caps: ModelCapabilities {
+                context_window: 200_000,
+                max_output_tokens: 32_768,
+                supports_tools: true,
+                supports_vision: true,
+                supports_extended_thinking: true,
+                supports_streaming: true,
+                tokenizer: TokenizerType::O200kBase,
+                rate_limit_rpm: None,
+                provider: ModelProvider::OpenAI,
+            },
+        },
+        ModelEntry {
+            prefix: "zen6-flash",
+            caps: ModelCapabilities {
+                context_window: 200_000,
+                max_output_tokens: 32_768,
+                supports_tools: true,
+                supports_vision: true,
+                supports_extended_thinking: true,
+                supports_streaming: true,
+                tokenizer: TokenizerType::O200kBase,
+                rate_limit_rpm: None,
+                provider: ModelProvider::OpenAI,
+            },
+        },
+        ModelEntry {
+            prefix: "zen6-free",
             caps: ModelCapabilities {
                 context_window: 128_000,
-                max_output_tokens: 8_192,
+                max_output_tokens: 16_384,
+                supports_tools: true,
+                supports_vision: true,
+                supports_extended_thinking: true,
+                supports_streaming: true,
+                tokenizer: TokenizerType::O200kBase,
+                rate_limit_rpm: None,
+                provider: ModelProvider::OpenAI,
+            },
+        },
+        ModelEntry {
+            prefix: "zen6",
+            caps: ModelCapabilities {
+                context_window: 200_000,
+                max_output_tokens: 32_768,
+                supports_tools: true,
+                supports_vision: true,
+                supports_extended_thinking: true,
+                supports_streaming: true,
+                tokenizer: TokenizerType::O200kBase,
+                rate_limit_rpm: None,
+                provider: ModelProvider::OpenAI,
+            },
+        },
+        ModelEntry {
+            prefix: "zen-vl",
+            caps: ModelCapabilities {
+                context_window: 200_000,
+                max_output_tokens: 32_768,
+                supports_tools: true,
+                supports_vision: true,
+                supports_extended_thinking: true,
+                supports_streaming: true,
+                tokenizer: TokenizerType::O200kBase,
+                rate_limit_rpm: None,
+                provider: ModelProvider::OpenAI,
+            },
+        },
+        ModelEntry {
+            prefix: "zen",
+            caps: ModelCapabilities {
+                context_window: 200_000,
+                max_output_tokens: 32_768,
+                supports_tools: true,
+                supports_vision: true,
+                supports_extended_thinking: true,
+                supports_streaming: true,
+                tokenizer: TokenizerType::O200kBase,
+                rate_limit_rpm: None,
+                provider: ModelProvider::OpenAI,
+            },
+        },
+        ModelEntry {
+            prefix: "qwen3",
+            caps: ModelCapabilities {
+                context_window: 128_000,
+                max_output_tokens: 16_384,
                 supports_tools: true,
                 supports_vision: false,
-                supports_extended_thinking: false,
+                supports_extended_thinking: true,
                 supports_streaming: true,
                 tokenizer: TokenizerType::SentencePiece,
                 rate_limit_rpm: None,
@@ -941,5 +1039,42 @@ mod tests {
         // Unknown: 32K default context → Tier 3
         assert_eq!(r.max_recalled_memories, 10);
         assert_eq!(r.sanitization_level, SanitizationLevel::Strict);
+    }
+
+    #[test]
+    fn test_zen6_capabilities() {
+        for sku in ["zen6", "zen6-coder", "zen6-flash", "zen-vl", "zen"] {
+            let caps = resolve_model_capabilities(sku);
+            assert_eq!(caps.context_window, 200_000, "sku {sku}");
+            assert_eq!(caps.max_output_tokens, 32_768, "sku {sku}");
+            assert!(caps.supports_tools);
+            assert!(caps.supports_vision);
+            assert!(caps.supports_extended_thinking);
+        }
+        let max_caps = resolve_model_capabilities("zen6-max");
+        assert_eq!(max_caps.context_window, 256_000);
+        let free_caps = resolve_model_capabilities("zen6-free");
+        assert_eq!(free_caps.context_window, 128_000);
+    }
+
+    #[test]
+    fn test_qwen3_only_and_no_qwen2_or_legacy_zen_entries() {
+        let caps = resolve_model_capabilities("qwen3-coder");
+        assert_eq!(caps.context_window, 128_000);
+        assert_eq!(caps.max_output_tokens, 16_384);
+        assert!(caps.supports_extended_thinking);
+        for entry in REGISTRY.iter() {
+            assert!(
+                !entry.prefix.contains("qwen2"),
+                "qwen2 models are forbidden; found prefix {}",
+                entry.prefix
+            );
+            assert!(
+                !(entry.prefix.starts_with("zen")
+                    && entry.prefix.chars().nth(3).is_some_and(|c| matches!(c, '1'..='5'))),
+                "legacy zen1..zen5 prefix forbidden; found {}",
+                entry.prefix
+            );
+        }
     }
 }

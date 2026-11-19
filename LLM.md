@@ -110,4 +110,20 @@ Local Bundle Commands:
   - Verified runtime server: opens local HTTP frontend and registers Zap bus on `~/.hanzo/ide.sock`.
   - Verified test suite: 7/7 Playwright tests passing (`npx playwright test`).
 
+## 2026-11-19: Hanzo Unified Shell Look & Feel (Hanzo Dev · Hanzo Team · Hanzo IDE)
+
+- **Canonical Unified Shell Tokens (`src/styles/tokens.css`, `src/hanzo/theme.ts`, `src/global.css`, `src/styles/overrides.css`)**:
+  - **Hanzo Dark (`Hanzo Obsidian`)**: `#090909` outer floor & activity rail, `#0c0c0c` collapsible sidebar (`248px`), `#111114` inset editor stage, `#222226` hairline borders, `8px` pill row items (`hover: rgba(255,255,255,0.05)`, `active: rgba(255,255,255,0.09)`), `#fafafa` / `#a1a1aa` / `#71717a` typography ramp, `#ffffff` / `#e4e4e7` monochrome accents, `#10b981` live dot, `#f59e0b` warning/approval, `#ef4444` error.
+  - **Hanzo Light (`Hanzo Alabaster`)**: `#f8f8fa` outer floor & rail, `#f4f4f6` sidebar, `#ffffff` editor canvas, `#e4e4e7` hairline borders, `#18181b` / `#52525b` / `#71717a` ink ramp, runtime switchable via `hanzo.toggleTheme` (`[data-hanzo-theme='light']`).
+- **Titlebar & Unified IAM Chrome (`src/hanzo/account.ts`, `src/hanzo/account.css`, `src/hanzo/iam.ts`, `src-tauri/src/lib.rs`)**:
+  - Clean macOS `TitleBarStyle::Overlay` (`hiddenInset`) titlebar on all main & secondary windows (`78px` traffic-lights inset).
+  - Left workspace/project switcher pill (`hanzo.openFolder`), right-aligned quick controls (`⌘B` sidebar toggle, `⌘K` / `⇧⌘P` Command Palette, `⌥⌘B` Hanzo Agent panel toggle, theme toggle, `⌘,` settings), and **Unified Hanzo IAM Account & Org (`X-Org-Id`) status pill** (`hanzo.id`).
+  - Cloud API calls (`src/hanzo/chat/send.ts`, `src/hanzo/chat/index.ts`, `src/hanzo/iam.ts`) attach `X-Org-Id` from the active org switcher.
+- **Model Policy (`Zen 6` + `qwen3+` ONLY)**:
+  - Removed all `qwen2` / `qwen2.5` and legacy `zen4` / `zen5` entries across `crates/hanzo-engine` (`model_caps.rs`, `worker_delegate.rs`) and `extension-adapters/generate-adapter.cjs`.
+  - Added canonical `Zen 6` SKUs (`zen6`, `zen6-coder`, `zen6-flash`, `zen6-max`, `zen6-free`, `zen-vl`, plus `zen*` prefix fallback) and `qwen3` (`qwen3-coder:30b`, `qwen3-coder`, `qwen3:8b`) capabilities and provider routing (`state.rs`, `cli.rs`, `chat/settings.ts`).
+- **Tests**:
+  - `npm test` (`node --test test/theme.test.ts`), `npx tsc --noEmit`, `npm run build`, `npx playwright test` (`e2e/chrome.spec.ts` + `e2e/chat.spec.ts`), and `cargo test -p hanzo-engine --lib` / `cargo check --workspace`.
+
+
 

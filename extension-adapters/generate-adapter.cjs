@@ -329,8 +329,8 @@ async function tryOllama() {
       return null;
     }
 
-    // Pick the best available model for code generation
-    const preferred = ['qwen2.5-coder:7b', 'codellama:7b', 'deepseek-coder:6.7b', 'llama3.1:8b', 'qwen2.5:7b', 'mistral:7b'];
+    // Pick the best available model for code generation (Zen 6 + Qwen3+ only, never Qwen2)
+    const preferred = ['zen6-coder', 'zen6', 'qwen3-coder:30b', 'qwen3-coder:8b', 'qwen3:8b', 'deepseek-coder:6.7b', 'codellama:7b', 'llama3.1:8b', 'mistral:7b'];
     let useModel = models[0]; // default to first available
     for (const pref of preferred) {
       if (models.some(m => m.startsWith(pref.split(':')[0]))) {

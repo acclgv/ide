@@ -69,7 +69,23 @@ async function registerKeybinding(): Promise<void> {
     // build; documented values from Monaco's standaloneKeybindingService.
     const wireEditor = (editor: any) => {
       editor.addCommand?.(2048 /* KeyMod.CtrlCmd */ | 41 /* KeyCode.KeyK */, () => {
-        showInlinePrompt()
+        const sel = editor.getSelection?.()
+        if (sel && !sel.isEmpty?.()) {
+          showInlinePrompt()
+        } else {
+          import('@codingame/monaco-vscode-api/services')
+            .then(async ({ StandaloneServices }) => {
+              const { ICommandService } = await import(
+                '@codingame/monaco-vscode-api/vscode/vs/platform/commands/common/commands'
+              )
+              if (ICommandService) {
+                await (StandaloneServices.get(ICommandService) as any)?.executeCommand?.(
+                  'workbench.action.showCommands',
+                )
+              }
+            })
+            .catch(() => {})
+        }
       })
     }
 

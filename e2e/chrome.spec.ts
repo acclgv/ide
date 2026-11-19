@@ -89,4 +89,15 @@ test.describe('workbench chrome', () => {
     }
     expect(yellow, 'yellow pixels in the workbench').toBe(0)
   })
+
+  test('renders unified Hanzo Shell titlebar controls and hanzo.id IAM pill', async ({ page }) => {
+    await workbench(page)
+    await expect(page.locator('.part.titlebar .hanzo-workspace-pill')).toBeVisible()
+    await expect(page.locator('.part.titlebar [aria-label="Toggle Sidebar (⌘B)"]')).toBeVisible()
+    await expect(page.locator('.part.titlebar [aria-label="Command Palette (⌘K)"]')).toBeVisible()
+    await expect(page.locator('.part.titlebar [aria-label="Toggle Hanzo Agent Panel (⌥⌘B)"]')).toBeVisible()
+    await expect(page.locator('.part.titlebar [aria-label="Settings (⌘,)"]')).toBeVisible()
+    await expect(page.locator('.part.titlebar .hanzo-account-domain')).toHaveText('hanzo.id')
+    await expect(page.locator('.part.titlebar .hanzo-account-btn')).toHaveText('Sign In')
+  })
 })

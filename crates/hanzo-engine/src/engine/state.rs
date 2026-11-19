@@ -383,7 +383,17 @@ pub fn resolve_provider_for_model(
         }
     }
 
-    if model.starts_with("claude") || model.starts_with("anthropic") {
+    if model.starts_with("zen") {
+        providers
+            .iter()
+            .find(|p| {
+                p.id == "hanzo"
+                    || p.base_url
+                        .as_deref()
+                        .is_some_and(|u| u.contains("hanzo.ai"))
+            })
+            .cloned()
+    } else if model.starts_with("claude") || model.starts_with("anthropic") {
         providers
             .iter()
             .find(|p| p.kind == ProviderKind::Anthropic)
@@ -651,7 +661,10 @@ impl EngineState {
         // more WM slots, small models avoid over-allocation.
         let wm_budget = {
             let cfg = self.config.lock();
-            let model = cfg.default_model.clone().unwrap_or_else(|| "gpt-4o".into());
+            let model = cfg
+                .default_model
+                .clone()
+                .unwrap_or_else(|| crate::engine::cli::DEFAULT_MODEL.into());
             let caps = crate::engine::engram::model_caps::resolve_model_capabilities(&model);
             let adaptive = caps.context_window / 10;
             adaptive.clamp(2048, 32768)

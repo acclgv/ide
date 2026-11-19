@@ -12,8 +12,8 @@ pub const PROVIDER_ID: &str = "hanzo";
 /// The unified Hanzo endpoint. OpenAI-compatible.
 pub const BASE_URL: &str = "https://api.hanzo.ai/v1";
 
-/// Default model for coding work — the same one `hanzo dev` uses.
-pub const DEFAULT_MODEL: &str = "zen5-coder";
+/// Default Zen 6 model for coding and agentic work.
+pub const DEFAULT_MODEL: &str = "zen6-coder";
 
 /// Embeddings run through the same account, so memory search works from the
 /// first launch rather than after a trip to Settings.
@@ -30,6 +30,18 @@ pub fn api_key() -> Option<String> {
     let v: serde_json::Value = serde_json::from_str(&raw).ok()?;
     v.get("apiKey")?
         .as_str()
+        .filter(|s| !s.is_empty())
+        .map(str::to_string)
+}
+
+/// The default organization `hanzo auth login` wrote, if present.
+pub fn org() -> Option<String> {
+    let raw = std::fs::read_to_string(config_path()?).ok()?;
+    let v: serde_json::Value = serde_json::from_str(&raw).ok()?;
+    v.get("org")
+        .or_else(|| v.get("defaultOrg"))
+        .and_then(|o| o.as_str())
+        .map(str::trim)
         .filter(|s| !s.is_empty())
         .map(str::to_string)
 }
@@ -105,4 +117,36 @@ pub fn adopt_account(state: &crate::engine::state::EngineState) -> Result<bool, 
     }
 
     Ok(changed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::atoms::types::{ProviderConfig, ProviderKind};
+    use crate::engine::state::resolve_provider_for_model;
+
+    #[test]
+    fn default_model_is_zen6_and_never_qwen2_or_legacy_zen() {
+        assert_eq!(PROVIDER_ID, "hanzo");
+        assert_eq!(BASE_URL, "https://api.hanzo.ai/v1");
+        assert_eq!(DEFAULT_MODEL, "zen6-coder");
+        assert!(!DEFAULT_MODEL.contains("qwen2"));
+        assert!(!DEFAULT_MODEL.starts_with("zen4") && !DEFAULT_MODEL.starts_with("zen5"));
+    }
+
+    #[test]
+    fn zen_models_route_to_hanzo_provider() {
+        let providers = vec![ProviderConfig {
+            id: PROVIDER_ID.to_string(),
+            kind: ProviderKind::OpenAI,
+            api_key: "hk-test".to_string(),
+            base_url: Some(BASE_URL.to_string()),
+            default_model: Some(DEFAULT_MODEL.to_string()),
+            enabled_models: None,
+        }];
+        for sku in ["zen6", "zen6-coder", "zen6-flash", "zen6-max", "zen6-free", "zen-vl", "zen"] {
+            let resolved = resolve_provider_for_model(sku, &providers);
+            assert_eq!(resolved.as_ref().map(|p| p.id.as_str()), Some("hanzo"), "sku {sku}");
+        }
+    }
 }

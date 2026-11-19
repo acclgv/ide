@@ -6,7 +6,7 @@
 
 import { invoke } from '@tauri-apps/api/core'
 import { tauri } from '../tauri.ts'
-import { token } from '../iam.ts'
+import { orgHeaders, token } from '../iam.ts'
 import { api } from '../cloud.ts'
 import { S } from './state.ts'
 import type { ChatResponse, AgentCheckpoint } from './types.ts'
@@ -198,9 +198,10 @@ export async function doSend(): Promise<void> {
         headers: {
           'Content-Type': 'application/json',
           ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
+          ...orgHeaders(),
         },
         body: JSON.stringify({
-          model: S.selectedModel || 'zen',
+          model: S.selectedModel || 'zen6',
           messages: [
             ...(systemPrompt ? [{ role: 'system', content: systemPrompt }] : []),
             ...S.messages.map((m) => ({ role: m.role, content: m.content })),

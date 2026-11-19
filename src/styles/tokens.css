@@ -3,78 +3,87 @@
    same face. Bundled with the app — no network, the same offline. */
 @import '@hanzo/font/css';
 
-/* ── Hanzo Design Tokens ──────────────────────────────────────────────────────
- * The single source of truth for Hanzo's visual language.
+/* ── Hanzo Unified Shell Tokens (Hanzo Dev · Hanzo Team · Hanzo IDE) ─────────
+ * Canonical obsidian dark & alabaster light tokens shared across Hanzo apps.
  * ────────────────────────────────────────────────────────────────────────── */
 
-:root {
-  /* ── Backgrounds ─────────────────────────────────────────────────────
-   * A neutral ramp off the Hanzo black. No hue: any cast reads as a
-   * second brand colour under large areas of grey. */
-  --hanzo-bg:              #000000;       /* deepest — editor background */
-  --hanzo-surface:         #111111;       /* panels — sidebar, activity bar */
-  --hanzo-surface-raised:  #1a1a1a;       /* elevated — cards, dropdowns, headers */
-  --hanzo-surface-hover:   #222222;       /* hover state */
-  --hanzo-surface-active:  #2a2a2a;       /* active/pressed */
-  --hanzo-surface-card:    #161616;       /* card backgrounds */
+:root,
+[data-hanzo-theme='dark'] {
+  /* ── Outer Chrome, Rail, Sidebar & Inset Stage ──────────────────────────
+   * Chrome and sidebar stay on the pure neutral ramp (R = G = B) so large
+   * structural panes carry zero colour cast. */
+  --hanzo-floor:           #090909;       /* outer chrome / app floor */
+  --hanzo-rail:            #090909;       /* left activity rail */
+  --hanzo-sidebar:         #0c0c0c;       /* collapsible sidebar (240-260px) */
+  --hanzo-bg:              #111114;       /* inset stage / editor canvas */
+  --hanzo-surface:         #090909;       /* titlebar, statusbar, rail chrome */
+  --hanzo-surface-raised:  #16161a;       /* elevated — popovers, command palette, menus */
+  --hanzo-surface-hover:   rgba(255, 255, 255, 0.05); /* 8px pill row hover */
+  --hanzo-surface-active:  rgba(255, 255, 255, 0.09); /* 8px pill row active */
+  --hanzo-surface-card:    #141417;       /* card & input surfaces */
 
   /* ── Gradient stops ────────────────────────────────────────────────── */
-  --hanzo-grad-light:      #1f1f1f;       /* lighter end of panel gradients */
-  --hanzo-grad-mid:        #151515;       /* middle */
-  --hanzo-grad-dark:       #0b0b0b;       /* darker end */
+  --hanzo-grad-light:      #18181b;
+  --hanzo-grad-mid:        #111114;
+  --hanzo-grad-dark:       #090909;
 
-  /* ── Borders (visible luminous edges) ──────────────────────────────── */
-  --hanzo-border:          #2e2e2e;       /* standard borders */
-  --hanzo-border-subtle:   #1f1f1f;       /* subtle dividers */
-  /* Separators. A dark UI reads depth from surface value, not from bright
-   * hairlines — anything above ~0.06 white on black shows up as a drawn line. */
+  /* ── Hairline Borders (zero noisy dividers) ────────────────────────── */
+  --hanzo-border:          #222226;       /* canonical hairline border (rgba(255,255,255,0.08)) */
+  --hanzo-border-subtle:   rgba(255, 255, 255, 0.06);
+  --hanzo-border-stage:    #19191c;       /* inset editor canvas hairline */
   --hanzo-border-light:    rgba(255, 255, 255, 0.05);
-  --hanzo-border-glow:     rgba(255, 255, 255, 0.07);
-  --hanzo-border-focus:    rgba(216, 216, 216, 0.35);
+  --hanzo-border-glow:     rgba(255, 255, 255, 0.08);
+  --hanzo-border-focus:    rgba(250, 250, 250, 0.32);
 
-  /* ── Accent (Hanzo monochrome) ───────────────────────────────────────── */
-  --hanzo-accent:          #d8d8d8;
-  --hanzo-accent-bright:   #ececec;
-  --hanzo-accent-dim:      #8a8a8a;
-  --hanzo-accent-glow:     rgba(216, 216, 216, 0.11);
-  --hanzo-accent-subtle:   rgba(255, 255, 255, 0.10);
-  --hanzo-accent-bg:       rgba(255, 255, 255, 0.06);
+  /* ── Accent (Hanzo high-contrast monochrome — never blue/purple) ───── */
+  --hanzo-accent:          #ffffff;
+  --hanzo-accent-pill:     #e4e4e7;
+  --hanzo-accent-ink:      #09090b;
+  --hanzo-accent-bright:   #ffffff;
+  --hanzo-accent-dim:      #a1a1aa;
+  --hanzo-accent-glow:     rgba(255, 255, 255, 0.11);
+  --hanzo-accent-subtle:   rgba(255, 255, 255, 0.09);
+  --hanzo-accent-bg:       rgba(255, 255, 255, 0.05);
 
-  /* ── Text ────────────────────────────────────────────────────────────── */
-  --hanzo-text:            #e4e4e4;
-  --hanzo-text-secondary:  #949494;
-  --hanzo-text-muted:      #6b6b6b;
-  --hanzo-text-accent:     #d8d8d8;
+  /* ── Typography & Ink ──────────────────────────────────────────────── */
+  --hanzo-text:            #fafafa;       /* primary foreground */
+  --hanzo-text-secondary:  #a1a1aa;       /* secondary / muted foreground */
+  --hanzo-text-muted:      #71717a;       /* subtle metadata */
+  --hanzo-text-accent:     #fafafa;
 
-  /* ── Semantic ────────────────────────────────────────────────────────── */
-  --hanzo-success:         #4ade80;
-  --hanzo-error:           #f87171;
-  --hanzo-warning:         #fb923c;
-  --hanzo-info:            #60a5fa;
+  /* ── Semantic Status Dots & Signals ────────────────────────────────── */
+  --hanzo-success:         #10b981;       /* live status dot */
+  --hanzo-warning:         #f59e0b;       /* approval / warning */
+  --hanzo-error:           #ef4444;       /* error */
+  --hanzo-info:            #a1a1aa;       /* neutral metadata signal */
 
-  /* ── Radius ──────────────────────────────────────────────────────────── */
-  --hanzo-radius-xs:       2px;
-  --hanzo-radius-sm:       4px;
-  --hanzo-radius-md:       6px;
+  /* ── Shell Geometry & Radius ───────────────────────────────────────── */
+  --hanzo-titlebar-height: 40px;
+  --hanzo-sidebar-width:   248px;
+  --hanzo-row-radius:      8px;
+  --hanzo-radius-xs:       4px;
+  --hanzo-radius-sm:       6px;
+  --hanzo-radius-md:       8px;
   --hanzo-radius-lg:       8px;
   --hanzo-radius-xl:       12px;
+  --hanzo-radius-pill:     9999px;
   --hanzo-radius-round:    50%;
 
-  /* ── Shadows ─────────────────────────────────────────────────────────── */
-  --hanzo-shadow-sm:       0 1px 3px rgba(0, 0, 0, 0.4);
-  --hanzo-shadow-md:       0 4px 12px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.3);
-  --hanzo-shadow-lg:       0 8px 24px rgba(0, 0, 0, 0.6), 0 2px 6px rgba(0, 0, 0, 0.3);
+  /* ── Shadows ───────────────────────────────────────────────────────── */
+  --hanzo-shadow-sm:       0 1px 2px rgba(0, 0, 0, 0.45);
+  --hanzo-shadow-md:       0 8px 24px -8px rgba(0, 0, 0, 0.65), 0 1px 3px rgba(0, 0, 0, 0.35);
+  --hanzo-shadow-lg:       0 20px 56px -16px rgba(0, 0, 0, 0.85), 0 2px 6px rgba(0, 0, 0, 0.4);
   --hanzo-shadow-glow:     0 0 10px var(--hanzo-accent-glow);
   --hanzo-shadow-glow-sm:  0 0 5px var(--hanzo-accent-glow);
-  --hanzo-shadow-inset:    inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+  --hanzo-shadow-inset:    inset 0 1px 0 rgba(255, 255, 255, 0.04);
 
-  /* ── Transitions ─────────────────────────────────────────────────────── */
-  --hanzo-transition-fast:    0.1s ease;
-  --hanzo-transition:         0.2s ease;
-  --hanzo-transition-slow:    0.3s ease;
-  --hanzo-transition-spring:  0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* ── Transitions ───────────────────────────────────────────────────── */
+  --hanzo-transition-fast:    0.12s cubic-bezier(0.16, 1, 0.3, 1);
+  --hanzo-transition:         0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  --hanzo-transition-slow:    0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  --hanzo-transition-spring:  0.3s cubic-bezier(0.32, 0.72, 0, 1);
 
-  /* ── Typography ──────────────────────────────────────────────────────── */
+  /* ── Typography ────────────────────────────────────────────────────── */
   --hanzo-font-ui:         'Zen', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --hanzo-font-mono:       'Zen Mono', 'SF Mono', ui-monospace, monospace;
   --hanzo-font-size-xs:    10px;
@@ -85,4 +94,53 @@
   --hanzo-font-size-xl:    16px;
   --hanzo-font-size-2xl:   20px;
   --hanzo-line-height:     1.5;
+}
+
+/* ── Hanzo Light (Clean Alabaster) ───────────────────────────────────────── */
+[data-hanzo-theme='light'],
+.light {
+  --hanzo-floor:           #f8f8fa;
+  --hanzo-rail:            #f8f8fa;
+  --hanzo-sidebar:         #f4f4f6;
+  --hanzo-bg:              #ffffff;
+  --hanzo-surface:         #f8f8fa;
+  --hanzo-surface-raised:  #ffffff;
+  --hanzo-surface-hover:   rgba(0, 0, 0, 0.04);
+  --hanzo-surface-active:  rgba(0, 0, 0, 0.07);
+  --hanzo-surface-card:    #f4f4f5;
+
+  --hanzo-grad-light:      #ffffff;
+  --hanzo-grad-mid:        #f8f8fa;
+  --hanzo-grad-dark:       #f4f4f5;
+
+  --hanzo-border:          #e4e4e7;
+  --hanzo-border-subtle:   rgba(0, 0, 0, 0.06);
+  --hanzo-border-stage:    #e4e4e7;
+  --hanzo-border-light:    rgba(0, 0, 0, 0.05);
+  --hanzo-border-glow:     rgba(0, 0, 0, 0.08);
+  --hanzo-border-focus:    rgba(24, 24, 27, 0.32);
+
+  --hanzo-accent:          #18181b;
+  --hanzo-accent-pill:     #18181b;
+  --hanzo-accent-ink:      #ffffff;
+  --hanzo-accent-bright:   #27272a;
+  --hanzo-accent-dim:      #52525b;
+  --hanzo-accent-glow:     rgba(24, 24, 27, 0.08);
+  --hanzo-accent-subtle:   rgba(0, 0, 0, 0.07);
+  --hanzo-accent-bg:       rgba(0, 0, 0, 0.04);
+
+  --hanzo-text:            #18181b;
+  --hanzo-text-secondary:  #52525b;
+  --hanzo-text-muted:      #71717a;
+  --hanzo-text-accent:     #18181b;
+
+  --hanzo-success:         #10b981;
+  --hanzo-warning:         #f59e0b;
+  --hanzo-error:           #ef4444;
+  --hanzo-info:            #52525b;
+
+  --hanzo-shadow-sm:       0 1px 2px rgba(0, 0, 0, 0.05);
+  --hanzo-shadow-md:       0 8px 24px -8px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.06);
+  --hanzo-shadow-lg:       0 20px 56px -16px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08);
+  --hanzo-shadow-inset:    inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }

@@ -122,7 +122,7 @@
 .hanzo-chat-session-select { flex: 1 1 auto; }
 .hanzo-chat-agent-select { flex: 1 1 auto; width: 100%; }
 
-.hanzo-chat-topbar button,
+.hanzo-chat-topbar button:not(.hanzo-account-btn),
 .hanzo-chat-icon-button {
   display: inline-flex !important;
   width: 26px !important;
@@ -795,12 +795,12 @@
   padding: 0 !important;
   border-color: var(--hanzo-accent) !important;
   background: var(--hanzo-accent) !important;
-  color: #0b0b0b !important;
+  color: var(--hanzo-accent-ink, #09090b) !important;
 }
 .hanzo-chat-send:hover:not(:disabled) {
   border-color: var(--hanzo-accent-bright) !important;
   background: var(--hanzo-accent-bright) !important;
-  color: #000 !important;
+  color: var(--hanzo-accent-ink, #09090b) !important;
   transform: none !important;
 }
 .hanzo-chat-send:active:not(:disabled) { transform: scale(0.94) !important; }

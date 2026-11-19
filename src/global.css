@@ -3,15 +3,10 @@
  *
  * Three layers:
  *   1. Reset / shell layout
- *   2. VS Code theme token overrides (--vscode-* variables)
- *   3. Hanzo component overrides (watermark, activity bar, sidebar, etc.)
+ *   2. VS Code theme token overrides (--vscode-* variables referencing --hanzo-*)
+ *   3. Hanzo component overrides (watermark, activity rail, sidebar, statusbar)
  */
 
-/* The sign-in control lives in the titlebar, under VS Code's
-   `.titlebar-drag-region`, which is position:absolute and pointer-events:auto.
-   A static sibling paints beneath it, so every click on "Sign In" landed on the
-   drag div — measured in a plain browser, where it made the button unclickable.
-   Stacked above it, and told the window it is not a drag handle. */
 /* ─── 1. Reset & shell ───────────────────────────────────────────────────── */
 
 *, *::before, *::after {
@@ -24,64 +19,58 @@ html, body {
   margin: 0;
   padding: 0;
   overflow: hidden;
-  background: #1e1e1e;
+  background: var(--hanzo-floor, #090909);
+  color: var(--hanzo-text, #fafafa);
   font-family: var(--hanzo-font-ui);
 }
 
 /* ─── 2. VS Code theme token overrides ───────────────────────────────────── */
-/*
- * All VS Code workbench colors are CSS custom properties on :root.
- * Override any of them here to retheme without touching extension code.
- *
- * Full reference: https://code.visualstudio.com/api/references/theme-color
- */
 
-/* Target .monaco-workbench — VS Code sets --vscode-* vars here, so :root has lower specificity */
 .monaco-workbench {
-  /* Activity bar */
-  --vscode-activityBar-background: #111111;
-  --vscode-activityBar-foreground: #cccccc;
-  --vscode-activityBar-inactiveForeground: #555555;
-  --vscode-activityBar-activeBorder: #d8d8d8;
-  --vscode-activityBarBadge-background: #d8d8d8;
-  --vscode-activityBarBadge-foreground: #000000;
+  /* Activity rail */
+  --vscode-activityBar-background: var(--hanzo-rail);
+  --vscode-activityBar-foreground: var(--hanzo-text);
+  --vscode-activityBar-inactiveForeground: var(--hanzo-text-muted);
+  --vscode-activityBar-activeBorder: var(--hanzo-accent);
+  --vscode-activityBarBadge-background: var(--hanzo-accent);
+  --vscode-activityBarBadge-foreground: var(--hanzo-accent-ink);
 
-  /* Sidebar */
-  --vscode-sideBar-background: #161616;
-  --vscode-sideBar-foreground: #cccccc;
-  --vscode-sideBarSectionHeader-background: #111111;
-  --vscode-sideBarSectionHeader-foreground: #888888;
+  /* Collapsible sidebar (240px–260px) */
+  --vscode-sideBar-background: var(--hanzo-sidebar);
+  --vscode-sideBar-foreground: var(--hanzo-text);
+  --vscode-sideBarSectionHeader-background: var(--hanzo-sidebar);
+  --vscode-sideBarSectionHeader-foreground: var(--hanzo-text-muted);
 
-  /* Editor */
-  --vscode-editor-background: #1a1a1a;
-  --vscode-editor-foreground: #d4d4d4;
-  --vscode-editorLineNumber-foreground: #404040;
-  --vscode-editorLineNumber-activeForeground: #888888;
+  /* Inset stage / editor canvas */
+  --vscode-editor-background: var(--hanzo-bg);
+  --vscode-editor-foreground: var(--hanzo-text);
+  --vscode-editorLineNumber-foreground: var(--hanzo-text-muted);
+  --vscode-editorLineNumber-activeForeground: var(--hanzo-text-secondary);
 
   /* Tabs */
-  --vscode-tab-activeBackground: #1a1a1a;
-  --vscode-tab-inactiveBackground: #131313;
-  --vscode-tab-activeForeground: #d8d8d8;
-  --vscode-tab-inactiveForeground: #888888;
+  --vscode-tab-activeBackground: var(--hanzo-bg);
+  --vscode-tab-inactiveBackground: var(--hanzo-floor);
+  --vscode-tab-activeForeground: var(--hanzo-text);
+  --vscode-tab-inactiveForeground: var(--hanzo-text-muted);
   --vscode-tab-border: transparent;
-  --vscode-editorGroupHeader-tabsBackground: #131313;
+  --vscode-editorGroupHeader-tabsBackground: var(--hanzo-floor);
 
   /* Panel (terminal / problems / output) */
-  --vscode-panel-background: #161616;
+  --vscode-panel-background: var(--hanzo-bg);
   --vscode-panel-border: transparent;
-  --vscode-panelTitle-activeForeground: #d8d8d8;
-  --vscode-panelTitle-inactiveForeground: #666666;
-  --vscode-panelTitle-activeBorder: #d8d8d8;
+  --vscode-panelTitle-activeForeground: var(--hanzo-text);
+  --vscode-panelTitle-inactiveForeground: var(--hanzo-text-muted);
+  --vscode-panelTitle-activeBorder: var(--hanzo-accent);
 
   /* Status bar */
-  --vscode-statusBar-background: #111111;
-  --vscode-statusBar-foreground: #cccccc;
-  --vscode-statusBar-noFolderBackground: #333333;
-  --vscode-statusBarItem-hoverBackground: rgba(255, 255, 255, 0.12);
-  --vscode-statusBarItem-remoteBackground: #262626;
-  --vscode-statusBarItem-remoteForeground: #d8d8d8;
+  --vscode-statusBar-background: var(--hanzo-floor);
+  --vscode-statusBar-foreground: var(--hanzo-text-secondary);
+  --vscode-statusBar-noFolderBackground: var(--hanzo-floor);
+  --vscode-statusBarItem-hoverBackground: var(--hanzo-surface-hover);
+  --vscode-statusBarItem-remoteBackground: var(--hanzo-surface-card);
+  --vscode-statusBarItem-remoteForeground: var(--hanzo-text);
 
-  /* Seams — see workbench.ts: separation comes from surface value, not lines */
+  /* Seams — separation comes from surface value, zero noisy dividers */
   --vscode-contrastBorder: transparent;
   --vscode-contrastActiveBorder: transparent;
   --vscode-activityBar-border: transparent;
@@ -93,37 +82,38 @@ html, body {
   --vscode-editorGroupHeader-tabsBorder: transparent;
 
   /* Title bar */
-  --vscode-titleBar-activeBackground: #111111;
-  --vscode-titleBar-activeForeground: #cccccc;
+  --vscode-titleBar-activeBackground: var(--hanzo-floor);
+  --vscode-titleBar-activeForeground: var(--hanzo-text);
+  --vscode-titleBar-inactiveBackground: var(--hanzo-floor);
+  --vscode-titleBar-inactiveForeground: var(--hanzo-text-muted);
 
   /* Input / search */
-  --vscode-input-background: #1e1e1e;
-  --vscode-input-foreground: #cccccc;
-  --vscode-input-border: #333333;
-  --vscode-focusBorder: #d8d8d8;
+  --vscode-input-background: var(--hanzo-surface-card);
+  --vscode-input-foreground: var(--hanzo-text);
+  --vscode-input-border: var(--hanzo-border);
+  --vscode-input-placeholderForeground: var(--hanzo-text-muted);
+  --vscode-focusBorder: var(--hanzo-border-focus);
 
   /* Scrollbar */
   --vscode-scrollbarSlider-background: rgba(255, 255, 255, 0.08);
-  --vscode-scrollbarSlider-hoverBackground: rgba(255, 255, 255, 0.14);
-  --vscode-scrollbarSlider-activeBackground: rgba(255, 255, 255, 0.2);
+  --vscode-scrollbarSlider-hoverBackground: rgba(255, 255, 255, 0.16);
+  --vscode-scrollbarSlider-activeBackground: rgba(255, 255, 255, 0.24);
 
-  /* Lists */
-  --vscode-list-hoverBackground: rgba(255, 255, 255, 0.04);
-  --vscode-list-activeSelectionBackground: rgba(255, 255, 255, 0.14);
-  --vscode-list-activeSelectionForeground: #d8d8d8;
-  --vscode-list-inactiveSelectionBackground: rgba(255, 255, 255, 0.07);
+  /* Lists — subtle 8px pill row hover & active states */
+  --vscode-list-hoverBackground: var(--hanzo-surface-hover);
+  --vscode-list-activeSelectionBackground: var(--hanzo-surface-active);
+  --vscode-list-activeSelectionForeground: var(--hanzo-text);
+  --vscode-list-inactiveSelectionBackground: var(--hanzo-surface-hover);
 
-  /* Buttons */
-  --vscode-button-background: #1f1f1f;
-  --vscode-button-foreground: #fafafa;
-  --vscode-button-hoverBackground: #2a2a2a;
-  --vscode-button-border: #333333;
+  /* Buttons — crisp high-contrast monochrome */
+  --vscode-button-background: var(--hanzo-accent);
+  --vscode-button-foreground: var(--hanzo-accent-ink);
+  --vscode-button-hoverBackground: var(--hanzo-accent-pill);
+  --vscode-button-border: transparent;
 }
 
 /* ─── 3. Hanzo Component Overrides ──────────────────────────────────────── */
 
-/* Workbench chrome uses Zen — VS Code reads --vscode-font-family for its own
-   labels, menus and lists. */
 .monaco-workbench,
 .monaco-workbench .part,
 .monaco-workbench .monaco-workbench-part {
@@ -132,49 +122,41 @@ html, body {
   font-family: var(--hanzo-font-ui) !important;
 }
 
-/* Activity bar — its action items are 48px square, so narrowing the bar just
-   crops the space around the icons. */
-
-/* Sidebar — remove the heavy border */
-.monaco-workbench .part.sidebar {
-  border-right: 1px solid #222222 !important;
-}
-
-/* Editor watermark — hide VS Code's default icon SVG/codicon completely */
+/* Editor watermark — monochrome Hanzo mark */
 .monaco-workbench .editor-group-watermark .letterpress,
 .monaco-workbench .editor-group-watermark > .letterpress {
   position: relative !important;
   width: 76px !important;
   height: 76px !important;
   background: url('/mark.svg') center/contain no-repeat !important;
-  opacity: 1 !important;
+  opacity: 0.9 !important;
   filter: none !important;
   font-size: 0 !important;
   color: transparent !important;
 }
 
-/* Hide any SVG or span child inside letterpress (the actual VS Code icon element) */
+[data-hanzo-theme='light'] .monaco-workbench .editor-group-watermark .letterpress,
+[data-hanzo-theme='light'] .monaco-workbench .editor-group-watermark > .letterpress {
+  filter: invert(1) !important;
+}
+
 .monaco-workbench .editor-group-watermark .letterpress > *,
 .monaco-workbench .editor-group-watermark > .letterpress > * {
   display: none !important;
 }
 
-/* Also target if VS Code renders the icon directly on the watermark */
 .monaco-workbench .editor-group-watermark {
   align-items: center !important;
 }
 
-/* Status bar — make it slightly taller and more refined */
 .monaco-workbench .part.statusbar {
   height: 24px !important;
 }
 
-/* Panel header tabs — cleaner */
 .monaco-workbench .part.panel .composite-bar .monaco-action-bar {
   padding: 0 4px;
 }
 
-/* Progress bar rides the accent rather than the brightest white available. */
 .monaco-progress-container .progress-bit {
   background: var(--hanzo-accent) !important;
 }

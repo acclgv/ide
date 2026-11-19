@@ -13,6 +13,8 @@ import { marked } from 'marked'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, tauri } from '../tauri.ts'
 import { api } from '../cloud.ts'
+import { orgHeaders } from '../iam.ts'
+import { HANZO_OLLAMA_MODEL_PRESETS, HANZO_ZEN_MODEL_PRESETS } from '../theme.ts'
 import { S } from './state.ts'
 import type { Agent, Session, StoredMessage, ApprovalMode, ChatMsg } from './types.ts'
 import {
@@ -92,9 +94,9 @@ function offer(models: string[]): void {
 async function loadModels(): Promise<void> {
   if (!tauri()) {
     // Outside the shell the cloud's catalog is the list, and Zen is the default.
-    const res = await fetch(`${api}/v1/models`).catch(() => null)
+    const res = await fetch(`${api}/v1/models`, { headers: orgHeaders() }).catch(() => null)
     const ids: string[] = res?.ok ? ((await res.json()).data ?? []).map((m: { id: string }) => m.id) : []
-    S.selectedModel ??= ids.includes('zen') ? 'zen' : ids[0] ?? null
+    S.selectedModel ??= ids.includes('zen6') ? 'zen6' : ids.includes('zen') ? 'zen' : ids[0] ?? null
     offer(ids)
     return
   }
@@ -120,11 +122,13 @@ export async function updateModelSelect(): Promise<void> {
       if (p.default_model) models.add(p.default_model)
     }
     const PRESETS: Record<string, string[]> = {
+      hanzo: [...HANZO_ZEN_MODEL_PRESETS],
       anthropic: ['claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'],
       openai: ['gpt-5.4', 'gpt-4o', 'gpt-4o-mini', 'o3', 'o4-mini'],
       google: ['gemini-3.1-pro-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'],
       moonshot: ['kimi-k2', 'moonshot-v1-128k'],
       deepseek: ['deepseek-chat', 'deepseek-reasoner'],
+      ollama: [...HANZO_OLLAMA_MODEL_PRESETS],
       claudecode: ['sonnet', 'opus', 'haiku'],
     }
     for (const p of providers) {
@@ -133,7 +137,8 @@ export async function updateModelSelect(): Promise<void> {
       if (enabledModels && enabledModels.length > 0) {
         for (const m of enabledModels) models.add(m)
       } else {
-        for (const m of PRESETS[p.kind] ?? []) models.add(m)
+        const key = p.id === 'hanzo' ? 'hanzo' : p.kind
+        for (const m of PRESETS[key] ?? []) models.add(m)
       }
     }
 

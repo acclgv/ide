@@ -8,21 +8,23 @@ import { invoke } from '@tauri-apps/api/core'
 import { tauri } from '../tauri.ts'
 import { S } from './state.ts'
 import { renderMessagesFull } from './render.ts'
+import { HANZO_OLLAMA_MODEL_PRESETS, HANZO_ZEN_MODEL_PRESETS } from '../theme.ts'
 
 // ─── Provider Definitions ────────────────────────────────────────────────────
 
 export const PROVIDER_DEFS = [
-  { id: 'anthropic',  label: 'Anthropic',  placeholder: 'sk-ant-...', url: 'https://api.anthropic.com',                             models: ['claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'] },
-  { id: 'openai',     label: 'OpenAI',     placeholder: 'sk-...',     url: 'https://api.openai.com/v1',                             models: ['gpt-4o', 'gpt-4o-mini', 'o3', 'o4-mini'] },
-  { id: 'google',     label: 'Google',     placeholder: 'AIza...',    url: 'https://generativelanguage.googleapis.com/v1beta',      models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'] },
-  { id: 'openrouter', label: 'OpenRouter', placeholder: 'sk-or-...', url: 'https://openrouter.ai/api/v1',                          models: ['anthropic/claude-opus-4', 'google/gemini-2.5-pro', 'deepseek/deepseek-r1'] },
-  { id: 'moonshot',   label: 'Moonshot',   placeholder: 'sk-...',     url: 'https://api.moonshot.ai/v1',                            models: ['kimi-k2', 'moonshot-v1-128k', 'moonshot-v1-32k', 'moonshot-v1-8k'] },
-  { id: 'deepseek',   label: 'DeepSeek',   placeholder: 'sk-...',     url: 'https://api.deepseek.com',                              models: ['deepseek-chat', 'deepseek-reasoner'] },
-  { id: 'xai',        label: 'xAI (Grok)', placeholder: 'xai-...',    url: 'https://api.x.ai/v1',                                   models: ['grok-3', 'grok-3-mini', 'grok-2'] },
-  { id: 'mistral',    label: 'Mistral',    placeholder: 'sk-...',     url: 'https://api.mistral.ai/v1',                             models: ['mistral-large-latest', 'mistral-small-latest', 'codestral-latest'] },
-  { id: 'ollama',     label: 'Ollama',     placeholder: '(no key)',   url: 'http://localhost:11434',                                models: ['llama3.2', 'llama3.1:70b', 'qwen3-coder', 'deepseek-coder-v2'] },
-  { id: 'claudecode', label: 'Claude Code', placeholder: '(no key)',  url: '',                                                      models: ['sonnet', 'opus', 'haiku'] },
-  { id: 'custom',     label: 'Custom',     placeholder: 'sk-...',     url: '',                                                      models: [] },
+  { id: 'hanzo',      kind: 'openai',     label: 'Hanzo (Zen)', placeholder: 'hk-...',     url: 'https://api.hanzo.ai/v1',                               models: [...HANZO_ZEN_MODEL_PRESETS] },
+  { id: 'anthropic',  kind: 'anthropic',  label: 'Anthropic',   placeholder: 'sk-ant-...', url: 'https://api.anthropic.com',                             models: ['claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'] },
+  { id: 'openai',     kind: 'openai',     label: 'OpenAI',      placeholder: 'sk-...',     url: 'https://api.openai.com/v1',                             models: ['gpt-4o', 'gpt-4o-mini', 'o3', 'o4-mini'] },
+  { id: 'google',     kind: 'google',     label: 'Google',      placeholder: 'AIza...',    url: 'https://generativelanguage.googleapis.com/v1beta',      models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'] },
+  { id: 'openrouter', kind: 'openrouter', label: 'OpenRouter',  placeholder: 'sk-or-...', url: 'https://openrouter.ai/api/v1',                          models: ['anthropic/claude-opus-4', 'google/gemini-2.5-pro', 'qwen/qwen3-235b-a22b', 'deepseek/deepseek-r1'] },
+  { id: 'moonshot',   kind: 'moonshot',   label: 'Moonshot',    placeholder: 'sk-...',     url: 'https://api.moonshot.ai/v1',                            models: ['kimi-k2', 'moonshot-v1-128k', 'moonshot-v1-32k', 'moonshot-v1-8k'] },
+  { id: 'deepseek',   kind: 'deepseek',   label: 'DeepSeek',    placeholder: 'sk-...',     url: 'https://api.deepseek.com',                              models: ['deepseek-chat', 'deepseek-reasoner'] },
+  { id: 'xai',        kind: 'xai',        label: 'xAI (Grok)',  placeholder: 'xai-...',    url: 'https://api.x.ai/v1',                                   models: ['grok-3', 'grok-3-mini', 'grok-2'] },
+  { id: 'mistral',    kind: 'mistral',    label: 'Mistral',     placeholder: 'sk-...',     url: 'https://api.mistral.ai/v1',                             models: ['mistral-large-latest', 'mistral-small-latest', 'codestral-latest'] },
+  { id: 'ollama',     kind: 'ollama',     label: 'Ollama',      placeholder: '(no key)',   url: 'http://localhost:11434',                                models: [...HANZO_OLLAMA_MODEL_PRESETS] },
+  { id: 'claudecode', kind: 'claudecode', label: 'Claude Code', placeholder: '(no key)',   url: '',                                                      models: ['sonnet', 'opus', 'haiku'] },
+  { id: 'custom',     kind: 'custom',     label: 'Custom',      placeholder: 'sk-...',     url: '',                                                      models: [] },
 ]
 
 // ─── Input Helpers ───────────────────────────────────────────────────────────
@@ -164,7 +166,7 @@ export function renderProviderSetup(): void {
       discoverBtn.disabled = true
       try {
         await invoke('engine_upsert_provider', {
-          provider: { id: pDef.id, name: pDef.label, kind: pDef.id, api_key: keyInp.value.trim(), base_url: urlInp.value.trim() }
+          provider: { id: pDef.id, name: pDef.label, kind: pDef.kind, api_key: keyInp.value.trim(), base_url: urlInp.value.trim() }
         })
         // The backend returns objects ({ id, name, context_window, max_output }),
         // not bare strings. Normalise to a string id/label so chips don't render
@@ -229,7 +231,7 @@ export function renderProviderSetup(): void {
       saveBtn.disabled = true
       try {
         await invoke('engine_upsert_provider', {
-          provider: { id: pDef.id, name: pDef.label, kind: pDef.id, api_key: key, base_url: url, default_model: model, enabled_models: Array.from(enabledSet) }
+          provider: { id: pDef.id, name: pDef.label, kind: pDef.kind, api_key: key, base_url: url, default_model: model, enabled_models: Array.from(enabledSet) }
         })
         const config = await invoke<any>('engine_get_config')
         await invoke('engine_set_config', { config: { ...config, default_provider: pDef.id, default_model: model } })

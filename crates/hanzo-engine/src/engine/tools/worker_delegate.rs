@@ -355,7 +355,7 @@ fn resolve_worker_provider(model: &str, providers: &[ProviderConfig]) -> Option<
     }
 
     // 2. Ollama fallback — local model names that don't match cloud prefixes
-    //    (worker-qwen, qwen2.5:7b, llama3.2:3b, phi3:mini, etc.)
+    //    (worker-qwen, qwen3:8b, llama3.2:3b, phi3:mini, etc.)
     if model.starts_with("worker-")
         || model.contains(':')
         || model.starts_with("llama")

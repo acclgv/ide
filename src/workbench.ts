@@ -142,6 +142,15 @@ import { registerHanzoExtensions } from './hanzo/extensions.ts'
 import { registerActivityFeed } from './hanzo/activity-feed.ts'
 import { initEditorIntegration } from './hanzo/editor.ts'
 import { registerMemory } from './hanzo/memory/index.ts'
+import {
+  applyDocumentAppearance,
+  buildWorkbenchColorCustomizations,
+  buildWorkbenchConfigurationDefaults,
+  HANZO_LIGHT_PALETTE,
+  HANZO_OBSIDIAN_PALETTE,
+  readStoredAppearance,
+  type HanzoAppearance,
+} from './hanzo/theme.ts'
 
 // ─── Workbench initialization ─────────────────────────────────────────────────
 
@@ -152,6 +161,8 @@ function setLoadingStatus(msg: string) {
 }
 
 export async function initializeWorkbench(): Promise<void> {
+  const initialAppearance = readStoredAppearance()
+  applyDocumentAppearance(initialAppearance)
   const container = document.getElementById('workbench-shell')!
 
   // Inject a visible status line into the loading screen
@@ -300,9 +311,9 @@ export async function initializeWorkbench(): Promise<void> {
     container,
     {
       productConfiguration: {
-        nameShort: 'Hanzo',
-        nameLong: 'Hanzo — Agent Workspace',
-        applicationName: 'hanzo',
+        nameShort: 'Hanzo IDE',
+        nameLong: 'Hanzo IDE — Unified Agent Workspace',
+        applicationName: 'hanzo-ide',
         dataFolderName: '.hanzo',
         // Must match a real VS Code version so extensions pass engines.vscode check.
         // @codingame/monaco-vscode-api v28 ≈ VS Code 1.96.x
@@ -322,26 +333,11 @@ export async function initializeWorkbench(): Promise<void> {
       defaultLayout: { views: [{ id: 'hanzo.chat' }] },
 
       configurationDefaults: {
-        'workbench.colorTheme': 'Default Dark Modern',
-        'editor.fontFamily': "'Zen Mono', 'SF Mono', ui-monospace, monospace",
-        'terminal.integrated.fontFamily': "'Zen Mono', 'SF Mono', ui-monospace, monospace",
-        'debug.console.fontFamily': "'Zen Mono', 'SF Mono', ui-monospace, monospace",
-        'chat.editor.fontFamily': "'Zen Mono', 'SF Mono', ui-monospace, monospace",
-        'editor.fontSize': 13,
-        'editor.tabSize': 2,
-        'editor.renderWhitespace': 'selection',
-        'editor.minimap.enabled': false,
-        'workbench.startupEditor': 'none',
-        'window.menuBarVisibility': 'hidden',
-        'workbench.activityBar.location': 'default',
-        // Prevent command palette from closing on spurious focus loss in Tauri WKWebView.
-        'workbench.quickOpen.closeOnFocusLost': false,
-        // Enable Prettier extension (it defaults to disabled if config returns undefined)
-        'prettier.enable': true,
-        // File icon theme — Seti gives proper per-type icons (COBOL, JS, etc.)
-        'workbench.iconTheme': 'vs-seti',
-        // Merge single-child folders into one row to keep the tree compact
-        'explorer.compactFolders': true,
+        ...buildWorkbenchConfigurationDefaults(),
+        'workbench.colorTheme':
+          initialAppearance === 'light'
+            ? HANZO_LIGHT_PALETTE.baseVsCodeTheme
+            : HANZO_OBSIDIAN_PALETTE.baseVsCodeTheme,
       },
     },
   )
@@ -602,71 +598,92 @@ export async function initializeDeferredFeatures(): Promise<void> {
     console.warn('[hanzo] App-menu listener setup failed:', e)
   }
 
-  // ─── Apply Hanzo theme colors ─────────────────────────────────────────────
-  await updateUserConfiguration(JSON.stringify({
-    'workbench.colorCustomizations': {
-      'activityBar.background': '#111111',
-      'activityBar.activeBorder': '#d8d8d8',
-      'activityBar.foreground': '#cccccc',
-      'activityBar.inactiveForeground': '#555555',
-      'activityBarBadge.background': '#d8d8d8',
-      'activityBarBadge.foreground': '#000000',
-      'statusBar.background': '#111111',
-      'statusBar.foreground': '#cccccc',
-      'statusBar.noFolderBackground': '#333333',
-      'sideBar.background': '#161616',
-      'sideBarSectionHeader.background': '#111111',
-      'editorGroupHeader.tabsBackground': '#131313',
-      'tab.activeBackground': '#1a1a1a',
-      'tab.inactiveBackground': '#131313',
-      'panel.background': '#161616',
-      'panelTitle.activeBorder': '#d8d8d8',
-      'button.background': '#1f1f1f',
-      'button.foreground': '#fafafa',
-      'button.border': '#333333',
-      'button.secondaryBackground': '#161616',
-      'button.secondaryForeground': '#a1a1a1',
-      'button.secondaryHoverBackground': '#222222',
-      'button.hoverBackground': '#2a2a2a',
-      'list.activeSelectionBackground': '#242424',
-      'list.activeSelectionForeground': '#d8d8d8',
-      'list.inactiveSelectionBackground': '#1c1c1c',
-      'list.focusBackground': '#242424',
-      'list.hoverBackground': '#1a1a1a',
-      'list.focusOutline': '#d8d8d8',
-      'progressBar.background': '#d8d8d8',
-      'titleBar.activeBackground': '#111111',
+  // ─── Apply Hanzo Unified Shell theme & register shell commands ───────────
+  const setAppearance = async (next: HanzoAppearance) => {
+    applyDocumentAppearance(next)
+    const palette = next === 'light' ? HANZO_LIGHT_PALETTE : HANZO_OBSIDIAN_PALETTE
+    await updateUserConfiguration(
+      JSON.stringify({
+        'workbench.colorTheme': palette.baseVsCodeTheme,
+        'workbench.colorCustomizations': buildWorkbenchColorCustomizations(next),
+      }),
+    )
+  }
 
-      // Seams. The workbench paints its own 1px borders from these; with the
-      // panels at #111111 against a #000000 editor the value step already
-      // separates them, so every seam is transparent rather than a drawn line.
-      'contrastBorder': '#00000000',
-      'sash.hoverBorder': '#00000000',
-      'focusBorder': '#3a3a3a',
-      'contrastActiveBorder': '#00000000',
-      'activityBar.border': '#00000000',
-      'sideBar.border': '#00000000',
-      'sideBarSectionHeader.border': '#00000000',
-      'statusBar.border': '#00000000',
-      'titleBar.border': '#00000000',
-      'panel.border': '#00000000',
-      'editorGroup.border': '#00000000',
-      'editorGroupHeader.tabsBorder': '#00000000',
-      'editorGroupHeader.border': '#00000000',
-      'tab.border': '#00000000',
-      'menu.border': '#00000000',
-      'widget.border': '#00000000',
-      'input.border': '#2a2a2a',
-      'dropdown.border': '#2a2a2a',
-      // Git decorations — the badge letter (M/U/A/D/C) carries the state,
-      // so these stay on the neutral ramp instead of adding hue to the tree.
-      'gitDecoration.modifiedResourceForeground': '#d8d8d8',
-      'gitDecoration.untrackedResourceForeground': '#b4b4b4',
-      'gitDecoration.ignoredResourceForeground': '#444444',
-      'gitDecoration.deletedResourceForeground': '#888888',
-      'gitDecoration.renamedResourceForeground': '#b4b4b4',
-      'gitDecoration.stageModifiedResourceForeground': '#d8d8d8',
-      'gitDecoration.conflictingResourceForeground': '#d8d8d8',
+  CommandsRegistry.registerCommand('hanzo.useDarkTheme', () => setAppearance('dark'))
+  CommandsRegistry.registerCommand('hanzo.useLightTheme', () => setAppearance('light'))
+  CommandsRegistry.registerCommand('hanzo.toggleTheme', () => {
+    const next: HanzoAppearance = readStoredAppearance() === 'light' ? 'dark' : 'light'
+    return setAppearance(next)
+  })
+  CommandsRegistry.registerCommand('hanzo.commandOrInlineEdit', async () => {
+    const { StandaloneServices, getService, ICodeEditorService } = await import(
+      '@codingame/monaco-vscode-api/services'
+    )
+    const { ICommandService } = await import(
+      '@codingame/monaco-vscode-api/vscode/vs/platform/commands/common/commands'
+    )
+    const edSvc = (await getService(ICodeEditorService)) as any
+    const activeEd = edSvc?.getActiveCodeEditor?.()
+    const sel = activeEd?.getSelection?.()
+    const cmdSvc = StandaloneServices.get(ICommandService) as any
+    if (activeEd?.hasTextFocus?.() && sel && !sel.isEmpty?.()) {
+      await cmdSvc?.executeCommand?.('hanzo.inlineEdit')
+    } else {
+      await cmdSvc?.executeCommand?.('workbench.action.showCommands')
+    }
+  })
+
+  // Global Unified Shell shortcuts matching Hanzo Dev & Hanzo Team:
+  //   ⌘K → Command Palette (when not editing a non-empty code selection)
+  //   ⌘, → Settings
+  //   ⌥⌘B → Toggle Hanzo Agent Panel
+  window.addEventListener(
+    'keydown',
+    (e) => {
+      const mod = e.metaKey || e.ctrlKey
+      if (!mod) return
+      const key = e.key.toLowerCase()
+      if (key === 'k' && !e.shiftKey && !e.altKey) {
+        const target = e.target as HTMLElement | null
+        if (target?.closest?.('.monaco-editor')) return // handled by inline.ts
+        if (target?.closest?.('.quick-input-widget')) return
+        e.preventDefault()
+        e.stopPropagation()
+        void import('@codingame/monaco-vscode-api/services').then(async ({ StandaloneServices }) => {
+          const { ICommandService } = await import(
+            '@codingame/monaco-vscode-api/vscode/vs/platform/commands/common/commands'
+          )
+          await (StandaloneServices.get(ICommandService) as any)?.executeCommand?.(
+            'workbench.action.showCommands',
+          )
+        })
+      } else if (e.key === ',' && !e.shiftKey && !e.altKey) {
+        e.preventDefault()
+        e.stopPropagation()
+        void import('@codingame/monaco-vscode-api/services').then(async ({ StandaloneServices }) => {
+          const { ICommandService } = await import(
+            '@codingame/monaco-vscode-api/vscode/vs/platform/commands/common/commands'
+          )
+          await (StandaloneServices.get(ICommandService) as any)?.executeCommand?.(
+            'workbench.action.openSettings',
+          )
+        })
+      } else if (key === 'b' && e.altKey && !e.shiftKey) {
+        e.preventDefault()
+        e.stopPropagation()
+        void import('@codingame/monaco-vscode-api/services').then(async ({ StandaloneServices }) => {
+          const { ICommandService } = await import(
+            '@codingame/monaco-vscode-api/vscode/vs/platform/commands/common/commands'
+          )
+          await (StandaloneServices.get(ICommandService) as any)?.executeCommand?.(
+            'workbench.action.toggleAuxiliaryBar',
+          )
+        })
+      }
     },
-  }))
+    { capture: true },
+  )
+
+  await setAppearance(readStoredAppearance())
 }

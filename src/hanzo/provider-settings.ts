@@ -13,25 +13,25 @@ import { SyncDescriptor } from '@codingame/monaco-vscode-api/vscode/vs/platform/
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
 const STYLES = `
-  .hanzo-prov { font-family:var(--hanzo-font-ui); color:#ccc; padding:16px; max-width:720px; }
-  .hanzo-prov h2 { font-size:16px; font-weight:600; color:#fff; margin:20px 0 6px; }
+  .hanzo-prov { font-family:var(--hanzo-font-ui); color:var(--hanzo-text, #fafafa); padding:16px; max-width:720px; }
+  .hanzo-prov h2 { font-size:16px; font-weight:600; color:var(--hanzo-text, #fafafa); margin:20px 0 6px; }
   .hanzo-prov h2:first-child { margin-top:0; }
-  .hanzo-prov p.desc { font-size:11px; color:#888; margin:0 0 12px; }
+  .hanzo-prov p.desc { font-size:11px; color:var(--hanzo-text-secondary, #a1a1aa); margin:0 0 12px; }
   .hanzo-prov table { width:100%; border-collapse:collapse; font-size:12px; margin-bottom:16px; }
-  .hanzo-prov th { text-align:left; padding:6px 10px; border-bottom:1px solid #333; color:#888; font-weight:500; }
-  .hanzo-prov td { padding:6px 10px; border-bottom:1px solid #2a2a2a; }
+  .hanzo-prov th { text-align:left; padding:6px 10px; border-bottom:1px solid var(--hanzo-border, #222226); color:var(--hanzo-text-muted, #71717a); font-weight:500; }
+  .hanzo-prov td { padding:6px 10px; border-bottom:1px solid var(--hanzo-border-subtle, rgba(255,255,255,0.06)); }
   .hanzo-prov .dot { width:7px; height:7px; border-radius:50%; display:inline-block; margin-right:5px; }
-  .hanzo-prov .dot-g { background:#2ea043; }
-  .hanzo-prov .dot-r { background:#da3633; }
-  .hanzo-prov .dot-y { background:#fb923c; }
-  .hanzo-prov .badge { font-size:9px; padding:2px 6px; border-radius:8px; background:#ffffff; color:#000; font-weight:600; }
-  .hanzo-prov .empty { padding:20px; text-align:center; border:1px dashed #3c3c3c; border-radius:6px; color:#888; font-size:12px; }
-  .hanzo-prov .hint { margin-top:16px; padding:10px 14px; background:#1e1e1e; border:1px solid #3c3c3c; border-radius:6px; font-size:11px; color:#888; }
-  .hanzo-prov .hint strong { color:#ffffff; }
+  .hanzo-prov .dot-g { background:var(--hanzo-success, #10b981); }
+  .hanzo-prov .dot-r { background:var(--hanzo-error, #ef4444); }
+  .hanzo-prov .dot-y { background:var(--hanzo-warning, #f59e0b); }
+  .hanzo-prov .badge { font-size:9px; padding:2px 6px; border-radius:8px; background:var(--hanzo-accent, #ffffff); color:var(--hanzo-accent-ink, #09090b); font-weight:600; }
+  .hanzo-prov .empty { padding:20px; text-align:center; border:1px dashed var(--hanzo-border, #222226); border-radius:8px; color:var(--hanzo-text-muted, #71717a); font-size:12px; }
+  .hanzo-prov .hint { margin-top:16px; padding:10px 14px; background:var(--hanzo-surface-card, #141417); border:1px solid var(--hanzo-border, #222226); border-radius:8px; font-size:11px; color:var(--hanzo-text-secondary, #a1a1aa); }
+  .hanzo-prov .hint strong { color:var(--hanzo-text, #fafafa); }
 `
 
 const PROVIDER_LABELS: Record<string, string> = {
-  ollama: 'Ollama (local)', openai: 'OpenAI', anthropic: 'Anthropic',
+  hanzo: 'Hanzo Cloud (Zen)', ollama: 'Ollama (local)', openai: 'OpenAI', anthropic: 'Anthropic',
   google: 'Google', deepseek: 'DeepSeek', moonshot: 'Moonshot (Kimi)',
   grok: 'xAI (Grok)', xai: 'xAI (Grok)', mistral: 'Mistral',
   openrouter: 'OpenRouter', azure_foundry: 'Azure AI Foundry',

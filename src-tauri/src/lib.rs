@@ -45,12 +45,21 @@ async fn open_new_window(app: tauri::AppHandle, folder_path: Option<String>) -> 
         None => WebviewUrl::App("index.html".into()),
     };
 
-    tauri::WebviewWindowBuilder::new(&app, &window_id, url)
+    let win = tauri::WebviewWindowBuilder::new(&app, &window_id, url)
         .title("Hanzo IDE")
         .inner_size(1440.0, 900.0)
         .min_inner_size(900.0, 600.0)
-        .center()
-        .build()
+        .resizable(true)
+        .center();
+
+    #[cfg(target_os = "macos")]
+    let win = win
+        .title_bar_style(tauri::TitleBarStyle::Overlay)
+        .hidden_title(true);
+    #[cfg(not(target_os = "macos"))]
+    let win = win.decorations(false);
+
+    win.build()
         .map_err(|e| format!("Failed to open new window: {e}"))?;
 
     log::info!("[hanzo] opened new window: {}", window_id);
@@ -229,6 +238,9 @@ fn build_app_menu(
         true,
         &[
             &MenuItem::with_id(handle, "view.commandPalette", "Command Palette…", true, None::<&str>)?,
+            &MenuItem::with_id(handle, "view.toggleSidebar", "Toggle Sidebar", true, None::<&str>)?,
+            &MenuItem::with_id(handle, "view.agentPanel", "Toggle Hanzo Agent Panel", true, None::<&str>)?,
+            &MenuItem::with_id(handle, "view.toggleTheme", "Toggle Dark / Light Theme", true, None::<&str>)?,
             &PredefinedMenuItem::separator(handle)?,
             &MenuItem::with_id(handle, "view.explorer", "Explorer", true, None::<&str>)?,
             &MenuItem::with_id(handle, "view.search", "Search", true, None::<&str>)?,
