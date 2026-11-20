@@ -228,7 +228,7 @@ export function build(container: HTMLElement): Chat {
     })
   }
 
-  // ── Top Bar (conversation + agent controls) ────────────────────────
+  // ── Top Bar (single compact header row: New chat, session/agent/model chips, actions) ──
   const topBar = document.createElement('div')
   topBar.className = 'hanzo-chat-topbar'
 
@@ -236,11 +236,9 @@ export function build(container: HTMLElement): Chat {
   topBarMain.className = 'hanzo-chat-topbar-main'
   const topBarActions = document.createElement('div')
   topBarActions.className = 'hanzo-chat-topbar-actions'
-  const topBarContext = document.createElement('div')
-  topBarContext.className = 'hanzo-chat-topbar-context'
 
   topBar.appendChild(topBarMain)
-  topBar.appendChild(topBarContext)
+  topBar.appendChild(topBarActions)
 
   // Session selector
   const sessionSel = document.createElement('select')
@@ -263,15 +261,8 @@ export function build(container: HTMLElement): Chat {
     }
   })
   S.sessionSelect = sessionSel
-  topBarMain.appendChild(sessionSel)
-  topBarMain.appendChild(topBarActions)
 
   // Agent selector
-  const agentLabel = document.createElement('span')
-  agentLabel.className = 'hanzo-chat-context-label'
-  agentLabel.innerHTML = '<span class="codicon codicon-sparkle" aria-hidden="true"></span><span>Agent</span>'
-  topBarContext.appendChild(agentLabel)
-
   const agentSel = document.createElement('select')
   agentSel.className = 'hanzo-chat-agent-select'
   agentSel.title = 'Choose an agent'
@@ -310,9 +301,8 @@ export function build(container: HTMLElement): Chat {
     })
   })
   S.agentSelect = agentSel
-  topBarContext.appendChild(agentSel)
 
-  // Model selector (rendered in the composer footer)
+  // Model selector (compact chip in the header row)
   const modelSel = document.createElement('select')
   modelSel.className = 'hanzo-chat-model-select'
   modelSel.title = 'Language model'
@@ -340,6 +330,7 @@ export function build(container: HTMLElement): Chat {
   // New chat button
   const newBtn = document.createElement('button')
   newBtn.type = 'button'
+  newBtn.className = 'hanzo-chat-new-btn'
   newBtn.title = 'New chat'
   newBtn.setAttribute('aria-label', 'Start a new chat')
   newBtn.innerHTML = '<span class="codicon codicon-add" style="font-size:13px"></span>'
@@ -376,7 +367,11 @@ export function build(container: HTMLElement): Chat {
       }
     }
   })
-  topBarActions.appendChild(newBtn)
+
+  topBarMain.appendChild(newBtn)
+  topBarMain.appendChild(sessionSel)
+  topBarMain.appendChild(agentSel)
+  topBarMain.appendChild(modelSel)
 
   // Providers / Settings button
   const settingsBtn = document.createElement('button')
@@ -900,7 +895,6 @@ export function build(container: HTMLElement): Chat {
   optionsLeft.prepend(attachBtn)
   optionsLeft.prepend(mentionBtn)
   optionsRight.appendChild(approvalWrap)
-  optionsRight.appendChild(modelSel)
   optionsRight.appendChild(surfaceBtn)
   optionsRight.appendChild(resumeBtn)
   optionsRight.appendChild(stopBtn)
@@ -911,15 +905,7 @@ export function build(container: HTMLElement): Chat {
   attachBar.className = 'hanzo-chat-attachment-bar'
   S.attachmentBar = attachBar
 
-  const composer = document.createElement('div')
-  composer.className = 'hanzo-chat-composer'
-  composer.appendChild(contextBar)
-  composer.appendChild(attachBar)
-  composer.appendChild(inputRow)
-  composer.appendChild(optionsRow)
-  inputArea.appendChild(composer)
-
-  // ── Whisper row (visible only while streaming) ──────────────────────
+  // ── Whisper row (visible only while streaming, tucked inside composer) ──
   const whisperRow = document.createElement('div')
   whisperRow.className = 'hanzo-whisper-row'
   S.whisperRow = whisperRow
@@ -944,12 +930,14 @@ export function build(container: HTMLElement): Chat {
   whisperBtn.addEventListener('click', doWhisper)
   whisperRow.appendChild(whisperBtn)
 
-  inputArea.appendChild(whisperRow)
-
-  // Separator line above input
-  const separator = document.createElement('div')
-  separator.className = 'hanzo-chat-separator'
-  container.appendChild(separator)
+  const composer = document.createElement('div')
+  composer.className = 'hanzo-chat-composer'
+  composer.appendChild(contextBar)
+  composer.appendChild(attachBar)
+  composer.appendChild(inputRow)
+  composer.appendChild(whisperRow)
+  composer.appendChild(optionsRow)
+  inputArea.appendChild(composer)
 
   container.appendChild(inputArea)
 
