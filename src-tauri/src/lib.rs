@@ -4,6 +4,8 @@
 
 // Hanzo AI crate provides engine + indexer
 
+mod dock_icon;
+
 use hanzo_engine::commands;
 use tauri::Manager;
 use tauri::WebviewUrl;
@@ -173,6 +175,30 @@ fn build_app_menu(
     use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 
     // App menu (shown under the app name on macOS).
+    #[cfg(target_os = "macos")]
+    let app_menu = {
+        let dock_icon_submenu = dock_icon::build_dock_icon_submenu(handle)?;
+        Submenu::with_items(
+            handle,
+            "Hanzo",
+            true,
+            &[
+                &PredefinedMenuItem::about(handle, Some("About Hanzo"), Some(AboutMetadata::default()))?,
+                &PredefinedMenuItem::separator(handle)?,
+                &MenuItem::with_id(handle, "app.settings", "Settings…", true, None::<&str>)?,
+                &dock_icon_submenu,
+                &PredefinedMenuItem::separator(handle)?,
+                &PredefinedMenuItem::services(handle, None)?,
+                &PredefinedMenuItem::separator(handle)?,
+                &PredefinedMenuItem::hide(handle, None)?,
+                &PredefinedMenuItem::hide_others(handle, None)?,
+                &PredefinedMenuItem::show_all(handle, None)?,
+                &PredefinedMenuItem::separator(handle)?,
+                &PredefinedMenuItem::quit(handle, None)?,
+            ],
+        )?
+    };
+    #[cfg(not(target_os = "macos"))]
     let app_menu = Submenu::with_items(
         handle,
         "Hanzo",
@@ -423,6 +449,8 @@ pub fn run() {
             index: std::sync::Mutex::new(None),
             external_index: std::sync::Mutex::new(None),
         })
+        // Dock icon menu checkmark synchronization state
+        .manage(dock_icon::DockIconMenuState::new())
         // ── Plugins ──────────────────────────────────────────────────────────
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -500,11 +528,21 @@ pub fn run() {
             // the OS and don't reach here. Custom items carry a dotted id
             // (e.g. "file.save"); forward it to the frontend, which runs the
             // matching VS Code workbench command.
-            let id = event.id().as_ref().to_string();
-            let _ = app.emit("menu-action", id);
+            let id = event.id().as_ref();
+            if dock_icon::handle_menu_event(app, id) {
+                return;
+            }
+            let _ = app.emit("menu-action", id.to_string());
         })
         // ── Startup background tasks ──────────────────────────────────────────
         .setup(move |app| {
+            // Apply persisted macOS Dock icon mode ("branded" | "minimal") on startup.
+            {
+                let mode = dock_icon::load_mode(app.handle());
+                if let Err(e) = dock_icon::apply_dock_icon(app.handle(), mode) {
+                    log::warn!("[hanzo] failed to apply startup dock icon mode ({mode}): {e}");
+                }
+            }
             // Logged here (not at builder time) so it lands in hanzo.log —
             // the log plugin only routes messages once the app is built.
             #[cfg(not(debug_assertions))]
@@ -675,6 +713,8 @@ pub fn run() {
             open_chat_window,
             close_chat_window,
             get_target_platform,
+            dock_icon::get_dock_icon_mode,
+            dock_icon::set_dock_icon_mode,
             hanzo_shell::ide_mcp::ide_read_file,
             hanzo_shell::ide_mcp::ide_write_file,
             hanzo_shell::ide_mcp::ide_read_file_bytes,

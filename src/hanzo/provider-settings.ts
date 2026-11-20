@@ -9,6 +9,13 @@ import { invoke } from '@tauri-apps/api/core'
 import { Registry } from '@codingame/monaco-vscode-api/vscode/vs/platform/registry/common/platform'
 import { Extensions as PreferencesExtensions } from '@codingame/monaco-vscode-preferences-service-override/vscode/vs/workbench/contrib/preferences/browser/preferencesEditorRegistry'
 import { SyncDescriptor } from '@codingame/monaco-vscode-api/vscode/vs/platform/instantiation/common/descriptors'
+import { tauri } from './tauri.ts'
+import {
+  getDockIconMode,
+  onDockIconModeChanged,
+  setDockIconMode,
+  type DockIconMode,
+} from './dock-icon.ts'
 
 // ─── Styles ──────────────────────────────────────────────────────────────────
 
@@ -28,6 +35,16 @@ const STYLES = `
   .hanzo-prov .empty { padding:20px; text-align:center; border:1px dashed var(--hanzo-border, #222226); border-radius:8px; color:var(--hanzo-text-muted, #71717a); font-size:12px; }
   .hanzo-prov .hint { margin-top:16px; padding:10px 14px; background:var(--hanzo-surface-card, #141417); border:1px solid var(--hanzo-border, #222226); border-radius:8px; font-size:11px; color:var(--hanzo-text-secondary, #a1a1aa); }
   .hanzo-prov .hint strong { color:var(--hanzo-text, #fafafa); }
+  .hanzo-prov .setting-card { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:12px 14px; background:var(--hanzo-surface-card, #141417); border:1px solid var(--hanzo-border, #222226); border-radius:8px; margin-bottom:16px; }
+  .hanzo-prov .setting-meta { display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .hanzo-prov .setting-title { font-size:12px; font-weight:600; color:var(--hanzo-text, #fafafa); }
+  .hanzo-prov .setting-desc { font-size:11px; color:var(--hanzo-text-secondary, #a1a1aa); }
+  .hanzo-prov .setting-err { font-size:11px; color:var(--hanzo-error, #ef4444); margin-top:4px; }
+  .hanzo-prov .segmented { display:inline-flex; align-items:center; padding:2px; gap:2px; background:var(--hanzo-bg, #111114); border:1px solid var(--hanzo-border, #222226); border-radius:8px; flex-shrink:0; }
+  .hanzo-prov .seg-btn { appearance:none; border:none; background:transparent; color:var(--hanzo-text-secondary, #a1a1aa); font-family:inherit; font-size:11px; font-weight:500; padding:5px 12px; border-radius:6px; cursor:pointer; transition:background var(--hanzo-transition-fast, 0.12s), color var(--hanzo-transition-fast, 0.12s); }
+  .hanzo-prov .seg-btn:hover:not([aria-checked="true"]):not(:disabled) { color:var(--hanzo-text, #fafafa); background:var(--hanzo-surface-hover, rgba(255,255,255,0.05)); }
+  .hanzo-prov .seg-btn[aria-checked="true"] { background:var(--hanzo-accent, #ffffff); color:var(--hanzo-accent-ink, #09090b); font-weight:600; }
+  .hanzo-prov .seg-btn:disabled { opacity:0.6; cursor:wait; }
 `
 
 const PROVIDER_LABELS: Record<string, string> = {
@@ -44,6 +61,7 @@ class HanzoAISettingsPane {
   private root: HTMLElement
   private content: HTMLElement
   private disposed = false
+  private unlistenDockIcon: (() => void) | null = null
 
   constructor() {
     this.root = document.createElement('div')
@@ -65,7 +83,110 @@ class HanzoAISettingsPane {
 
   dispose(): void {
     this.disposed = true
+    this.unlistenDockIcon?.()
+    this.unlistenDockIcon = null
     this.root.remove()
+  }
+
+  private renderDockIconSection(initialMode: DockIconMode): HTMLElement {
+    const section = document.createElement('div')
+
+    const heading = document.createElement('h2')
+    heading.textContent = 'Appearance'
+    section.appendChild(heading)
+
+    const card = document.createElement('div')
+    card.className = 'setting-card'
+
+    const meta = document.createElement('div')
+    meta.className = 'setting-meta'
+
+    const title = document.createElement('div')
+    title.className = 'setting-title'
+    title.textContent = 'Dock icon'
+
+    const desc = document.createElement('div')
+    desc.className = 'setting-desc'
+    desc.textContent = 'Switch between the branded icon with the corner H badge and the minimal icon.'
+
+    const errEl = document.createElement('div')
+    errEl.className = 'setting-err'
+    errEl.style.display = 'none'
+
+    meta.append(title, desc, errEl)
+
+    const group = document.createElement('div')
+    group.className = 'segmented'
+    group.setAttribute('role', 'radiogroup')
+    group.setAttribute('aria-label', 'Dock icon')
+
+    const options: Array<{ mode: DockIconMode; label: string; title: string }> = [
+      { mode: 'branded', label: 'Branded', title: 'Branded (H badge)' },
+      { mode: 'minimal', label: 'Minimal', title: 'Minimal (No badge)' },
+    ]
+
+    let currentMode: DockIconMode = initialMode
+    let busy = false
+    const buttons = new Map<DockIconMode, HTMLButtonElement>()
+
+    const syncButtons = () => {
+      for (const [mode, btn] of buttons) {
+        const active = mode === currentMode
+        btn.setAttribute('aria-checked', active ? 'true' : 'false')
+        btn.disabled = busy
+      }
+    }
+
+    for (const opt of options) {
+      const btn = document.createElement('button')
+      btn.type = 'button'
+      btn.className = 'seg-btn'
+      btn.textContent = opt.label
+      btn.title = opt.title
+      btn.dataset.mode = opt.mode
+      btn.setAttribute('role', 'radio')
+      btn.addEventListener('click', async () => {
+        if (busy || opt.mode === currentMode) return
+        const previous = currentMode
+        currentMode = opt.mode
+        busy = true
+        errEl.style.display = 'none'
+        syncButtons()
+        try {
+          currentMode = await setDockIconMode(opt.mode)
+        } catch (e) {
+          currentMode = previous
+          errEl.textContent = `Failed to update dock icon: ${e}`
+          errEl.style.display = 'block'
+        } finally {
+          busy = false
+          if (!this.disposed) syncButtons()
+        }
+      })
+      buttons.set(opt.mode, btn)
+      group.appendChild(btn)
+    }
+
+    syncButtons()
+    card.append(meta, group)
+    section.appendChild(card)
+
+    // Keep selector synchronized when switched via macOS app menu.
+    void onDockIconModeChanged((nextMode) => {
+      if (this.disposed) return
+      currentMode = nextMode
+      errEl.style.display = 'none'
+      syncButtons()
+    }).then((unlisten) => {
+      if (this.disposed) {
+        unlisten()
+      } else {
+        this.unlistenDockIcon?.()
+        this.unlistenDockIcon = unlisten
+      }
+    })
+
+    return section
   }
 
   // ─── Load & Render (once) ──────────────────────────────────────────────
@@ -73,27 +194,22 @@ class HanzoAISettingsPane {
   private async loadAndRender(): Promise<void> {
     this.content.textContent = 'Loading…'
 
-    let config: any
-    try {
-      config = await invoke('engine_get_config')
-    } catch (e) {
-      if (this.disposed) return
-      const err = document.createElement('p')
-      err.style.color = '#f85149'
-      err.textContent = `Failed to load config: ${e}`
-      this.content.textContent = ''
-      this.content.appendChild(err)
-      return
-    }
+    const inTauri = tauri()
+    const [configResult, dockIconMode] = await Promise.all([
+      invoke<any>('engine_get_config')
+        .then((config) => ({ ok: true as const, config }))
+        .catch((error) => ({ ok: false as const, error })),
+      inTauri
+        ? getDockIconMode().catch(() => 'branded' as DockIconMode)
+        : Promise.resolve('branded' as DockIconMode),
+    ])
 
     if (this.disposed) return
     this.content.textContent = ''
 
-    const providers: any[] = config.providers ?? []
-
     // Header
     const header = document.createElement('div')
-    header.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px 0;margin-bottom:16px;border-bottom:1px solid #333'
+    header.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px 0;margin-bottom:16px;border-bottom:1px solid var(--hanzo-border, #222226)'
 
     const img = document.createElement('img')
     img.src = `${window.location.origin}/mark.svg`
@@ -103,15 +219,30 @@ class HanzoAISettingsPane {
 
     const titleWrap = document.createElement('div')
     const title = document.createElement('div')
-    title.style.cssText = 'font-size:16px;font-weight:600;color:#ffffff;letter-spacing:0.05em'
+    title.style.cssText = 'font-size:16px;font-weight:600;color:var(--hanzo-text, #fafafa);letter-spacing:0.05em'
     title.textContent = 'Hanzo AI'
     const subtitle = document.createElement('div')
-    subtitle.style.cssText = 'font-size:11px;color:#888'
+    subtitle.style.cssText = 'font-size:11px;color:var(--hanzo-text-muted, #71717a)'
     subtitle.textContent = 'Powered by Hanzo AI Engine'
     titleWrap.appendChild(title)
     titleWrap.appendChild(subtitle)
     header.appendChild(titleWrap)
     this.content.appendChild(header)
+
+    if (inTauri) {
+      this.content.appendChild(this.renderDockIconSection(dockIconMode))
+    }
+
+    if (!configResult.ok) {
+      const err = document.createElement('p')
+      err.style.color = 'var(--hanzo-error, #ef4444)'
+      err.textContent = `Failed to load config: ${configResult.error}`
+      this.content.appendChild(err)
+      return
+    }
+
+    const config = configResult.config
+    const providers: any[] = config.providers ?? []
 
     // Section heading
     const h2 = document.createElement('h2')

@@ -52,3 +52,8 @@ hanzo-shell = { path = "../crates/hanzo-shell" }
 
 # Hanzo AI — AST indexer, WASM skills, tool executor, diff editor
 hanzo-ai = { path = "../crates/hanzo-ai" }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6.5"
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["NSApplication", "NSImage"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["NSData"] }

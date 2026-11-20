@@ -616,6 +616,11 @@ export async function initializeDeferredFeatures(): Promise<void> {
     const next: HanzoAppearance = readStoredAppearance() === 'light' ? 'dark' : 'light'
     return setAppearance(next)
   })
+  if (tauri()) {
+    const { setDockIconMode } = await import('./hanzo/dock-icon.ts')
+    CommandsRegistry.registerCommand('hanzo.dockIcon.branded', () => setDockIconMode('branded'))
+    CommandsRegistry.registerCommand('hanzo.dockIcon.minimal', () => setDockIconMode('minimal'))
+  }
   CommandsRegistry.registerCommand('hanzo.commandOrInlineEdit', async () => {
     const { StandaloneServices, getService, ICodeEditorService } = await import(
       '@codingame/monaco-vscode-api/services'
