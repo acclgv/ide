@@ -266,17 +266,6 @@ export async function stopExtensionHost(): Promise<void> {
   _extensions = []
   _activatedIds = []
   _extensionCommands.clear()
-  for (const d of _languageProviderDisposables.values()) {
-    try { d.dispose() } catch { /* ignore */ }
-  }
-  _languageProviderDisposables.clear()
-  _languageProviders.clear()
-  for (const list of _inlineCompletionDisposables.values()) {
-    for (const d of list) {
-      try { d.dispose() } catch { /* ignore */ }
-    }
-  }
-  _inlineCompletionDisposables.clear()
 
   // Only call the IPC if we believe the host is still alive.
   if (_running) {
@@ -1648,7 +1637,6 @@ function handleDecorationDisposeType(params: any): void {
 // ─── Registered language providers (for proxying requests back to sidecar) ──
 
 const _languageProviders = new Map<string, Set<string>>() // type → languages
-const _languageProviderDisposables = new Map<string, { dispose(): void }>() // `${type}:${lang}` → disposable
 
 // ─── Output channels ────────────────────────────────────────────────────────
 
@@ -1945,43 +1933,13 @@ async function handleRegisterLanguageProvider(
   debugLog(`registerLanguageProvider(${type}): ${languages.join(', ')}`)
 
   try {
-    // Same as src/hanzo/completions.ts and handleRegisterInlineCompletion:
-    // `monaco.languages` does not exist in the @codingame/monaco-vscode-editor-api
-    // build. Register all language providers through ILanguageFeaturesService
-    // so the workbench's editor services actually consume them.
-    const { getService, ILanguageFeaturesService } = await import(
-      '@codingame/monaco-vscode-api/services'
-    )
-    const {
-      CompletionItemKind,
-      CompletionItemInsertTextRule,
-      SymbolKind,
-      FoldingRangeKind,
-    } = await import(
-      '@codingame/monaco-vscode-api/vscode/vs/editor/common/languages'
-    )
-    const { URI } = await import(
-      '@codingame/monaco-vscode-api/vscode/vs/base/common/uri'
-    )
-    const features = (await getService(ILanguageFeaturesService)) as any
-
-    const trackDisposable = (lang: string, disposable: { dispose(): void } | undefined) => {
-      if (!disposable) return
-      const key = `${type}:${lang}`
-      const prev = _languageProviderDisposables.get(key)
-      if (prev) {
-        try { prev.dispose() } catch { /* ignore */ }
-      }
-      _languageProviderDisposables.set(key, disposable)
-    }
+    const monacoMod = await import('monaco-editor') as any
+    const monaco = monacoMod.default || monacoMod
 
     for (const lang of languages) {
-      const target = lang === '*' ? '*' : lang
       switch (type) {
         case 'completion':
-          trackDisposable(lang, features.completionProvider.register(target, {
-            _debugDisplayName: `ext-bridge:${lang}`,
-            triggerCharacters: params?.triggerCharacters,
+          monaco.languages.registerCompletionItemProvider(lang, {
             provideCompletionItems: async (model: any, position: any) => {
               try {
                 const result = await sendRequest('languages/provideCompletionItems', {
@@ -1990,23 +1948,18 @@ async function handleRegisterLanguageProvider(
                   languageId: lang,
                 })
                 if (!result?.items) return { suggestions: [] }
-                const word = model.getWordUntilPosition?.(position)
-                const defaultRange = {
-                  startLineNumber: position.lineNumber,
-                  startColumn: word?.startColumn ?? position.column,
-                  endLineNumber: position.lineNumber,
-                  endColumn: word?.endColumn ?? position.column,
-                }
                 return {
                   suggestions: result.items.map((item: any) => ({
                     label: item.label || '',
-                    kind: item.kind ?? (CompletionItemKind?.Text ?? 18),
+                    kind: item.kind ?? monaco.languages.CompletionItemKind.Text,
                     insertText: item.insertText || item.label || '',
                     // When the extension returned a SnippetString, tell
                     // Monaco to interpret ${1:..} placeholders rather than
-                    // inserting them literally.
+                    // inserting them literally. (kind values pass through
+                    // unchanged: monaco-editor is aliased to the codingame
+                    // build, which uses VS Code's own enum values.)
                     insertTextRules: item.insertTextIsSnippet
-                      ? (CompletionItemInsertTextRule?.InsertAsSnippet ?? 4)
+                      ? monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet
                       : undefined,
                     detail: item.detail,
                     documentation: item.documentation,
@@ -2017,18 +1970,18 @@ async function handleRegisterLanguageProvider(
                       startColumn: (item.range.start?.character ?? 0) + 1,
                       endLineNumber: (item.range.end?.line ?? 0) + 1,
                       endColumn: (item.range.end?.character ?? 0) + 1,
-                    } : defaultRange,
+                    } : undefined,
                   })),
                 }
               } catch {
                 return { suggestions: [] }
               }
             },
-          }))
+          })
           break
 
         case 'hover':
-          trackDisposable(lang, features.hoverProvider.register(target, {
+          monaco.languages.registerHoverProvider(lang, {
             provideHover: async (model: any, position: any) => {
               try {
                 const result = await sendRequest('languages/provideHover', {
@@ -2053,11 +2006,11 @@ async function handleRegisterLanguageProvider(
                 return null
               }
             },
-          }))
+          })
           break
 
         case 'definition':
-          trackDisposable(lang, features.definitionProvider.register(target, {
+          monaco.languages.registerDefinitionProvider(lang, {
             provideDefinition: async (model: any, position: any) => {
               try {
                 const result = await sendRequest('languages/provideDefinition', {
@@ -2068,7 +2021,7 @@ async function handleRegisterLanguageProvider(
                 if (!result) return null
                 const locations = Array.isArray(result) ? result : [result]
                 return locations.map((loc: any) => ({
-                  uri: URI.file(loc.uri || loc.path || ''),
+                  uri: monaco.Uri.file(loc.uri || loc.path || ''),
                   range: {
                     startLineNumber: (loc.range?.start?.line ?? 0) + 1,
                     startColumn: (loc.range?.start?.character ?? 0) + 1,
@@ -2080,11 +2033,11 @@ async function handleRegisterLanguageProvider(
                 return null
               }
             },
-          }))
+          })
           break
 
         case 'reference':
-          trackDisposable(lang, features.referenceProvider.register(target, {
+          monaco.languages.registerReferenceProvider(lang, {
             provideReferences: async (model: any, position: any, context: any) => {
               try {
                 const result = await sendRequest('languages/provideReferences', {
@@ -2096,7 +2049,7 @@ async function handleRegisterLanguageProvider(
                 if (!result) return null
                 const locations = Array.isArray(result) ? result : [result]
                 return locations.map((loc: any) => ({
-                  uri: URI.file(loc.uri || loc.path || ''),
+                  uri: monaco.Uri.file(loc.uri || loc.path || ''),
                   range: {
                     startLineNumber: (loc.range?.start?.line ?? 0) + 1,
                     startColumn: (loc.range?.start?.character ?? 0) + 1,
@@ -2108,11 +2061,11 @@ async function handleRegisterLanguageProvider(
                 return null
               }
             },
-          }))
+          })
           break
 
         case 'documentSymbol':
-          trackDisposable(lang, features.documentSymbolProvider.register(target, {
+          monaco.languages.registerDocumentSymbolProvider(lang, {
             provideDocumentSymbols: async (model: any) => {
               try {
                 const result = await sendRequest('languages/provideDocumentSymbols', {
@@ -2123,7 +2076,7 @@ async function handleRegisterLanguageProvider(
                 return (Array.isArray(result) ? result : []).map((sym: any) => ({
                   name: sym.name || '',
                   detail: sym.detail || '',
-                  kind: sym.kind ?? (SymbolKind?.Variable ?? 12),
+                  kind: sym.kind ?? monaco.languages.SymbolKind.Variable,
                   range: {
                     startLineNumber: (sym.range?.start?.line ?? 0) + 1,
                     startColumn: (sym.range?.start?.character ?? 0) + 1,
@@ -2143,11 +2096,11 @@ async function handleRegisterLanguageProvider(
                 return []
               }
             },
-          }))
+          })
           break
 
         case 'codeAction':
-          trackDisposable(lang, features.codeActionProvider.register(target, {
+          monaco.languages.registerCodeActionProvider(lang, {
             provideCodeActions: async (model: any, range: any) => {
               try {
                 const result = await sendRequest('languages/provideCodeActions', {
@@ -2168,18 +2121,18 @@ async function handleRegisterLanguageProvider(
                     title: a.command.title || '',
                     arguments: a.command.arguments || [],
                   } : undefined,
-                  edit: a.edit ? convertWorkspaceEdit(a.edit, URI) : undefined,
+                  edit: a.edit ? convertWorkspaceEdit(a.edit, monaco) : undefined,
                 }))
                 return { actions, dispose() {} }
               } catch {
                 return { actions: [], dispose() {} }
               }
             },
-          }))
+          })
           break
 
         case 'formatting':
-          trackDisposable(lang, features.documentFormattingEditProvider.register(target, {
+          monaco.languages.registerDocumentFormattingEditProvider(lang, {
             provideDocumentFormattingEdits: async (model: any, options: any) => {
               try {
                 const result = await sendRequest('languages/provideDocumentFormattingEdits', {
@@ -2201,11 +2154,11 @@ async function handleRegisterLanguageProvider(
                 return []
               }
             },
-          }))
+          })
           break
 
         case 'rename':
-          trackDisposable(lang, features.renameProvider.register(target, {
+          monaco.languages.registerRenameProvider(lang, {
             provideRenameEdits: async (model: any, position: any, newName: any) => {
               try {
                 const result = await sendRequest('languages/provideRenameEdits', {
@@ -2215,7 +2168,7 @@ async function handleRegisterLanguageProvider(
                   languageId: lang,
                 })
                 if (!result) return { edits: [] }
-                return convertWorkspaceEdit(result, URI)
+                return convertWorkspaceEdit(result, monaco)
               } catch {
                 return { edits: [] }
               }
@@ -2241,11 +2194,11 @@ async function handleRegisterLanguageProvider(
                 return { range: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 }, text: '' }
               }
             },
-          }))
+          })
           break
 
         case 'signatureHelp':
-          trackDisposable(lang, features.signatureHelpProvider.register(target, {
+          monaco.languages.registerSignatureHelpProvider(lang, {
             signatureHelpTriggerCharacters: params?.triggerCharacters || ['(', ','],
             provideSignatureHelp: async (model: any, position: any) => {
               try {
@@ -2274,11 +2227,11 @@ async function handleRegisterLanguageProvider(
                 return null
               }
             },
-          }))
+          })
           break
 
         case 'codeLens':
-          trackDisposable(lang, features.codeLensProvider.register(target, {
+          monaco.languages.registerCodeLensProvider(lang, {
             provideCodeLenses: async (model: any) => {
               try {
                 const result = await sendRequest('languages/provideCodeLenses', {
@@ -2303,14 +2256,14 @@ async function handleRegisterLanguageProvider(
                 return { lenses: [], dispose() {} }
               }
             },
-          }))
+          })
           break
 
         case 'implementation':
         case 'typeDefinition':
         case 'declaration': {
-          // All three return Location[]; only the RPC method + service
-          // registry differ. Map locations the same way as definition.
+          // All three return Location[]; only the RPC method + Monaco
+          // register fn differ. Map locations the same way as definition.
           const rpcMethod = type === 'implementation' ? 'languages/provideImplementation'
             : type === 'typeDefinition' ? 'languages/provideTypeDefinition'
             : 'languages/provideDeclaration'
@@ -2323,7 +2276,7 @@ async function handleRegisterLanguageProvider(
               })
               if (!result) return null
               return (Array.isArray(result) ? result : [result]).map((loc: any) => ({
-                uri: URI.file(loc.uri || loc.path || ''),
+                uri: monaco.Uri.file(loc.uri || loc.path || ''),
                 range: {
                   startLineNumber: (loc.range?.start?.line ?? 0) + 1,
                   startColumn: (loc.range?.start?.character ?? 0) + 1,
@@ -2335,14 +2288,14 @@ async function handleRegisterLanguageProvider(
               return null
             }
           }
-          if (type === 'implementation') trackDisposable(lang, features.implementationProvider.register(target, { provideImplementation: provideFn }))
-          else if (type === 'typeDefinition') trackDisposable(lang, features.typeDefinitionProvider.register(target, { provideTypeDefinition: provideFn }))
-          else trackDisposable(lang, features.declarationProvider.register(target, { provideDeclaration: provideFn }))
+          if (type === 'implementation') monaco.languages.registerImplementationProvider(lang, { provideImplementation: provideFn })
+          else if (type === 'typeDefinition') monaco.languages.registerTypeDefinitionProvider(lang, { provideTypeDefinition: provideFn })
+          else monaco.languages.registerDeclarationProvider(lang, { provideDeclaration: provideFn })
           break
         }
 
         case 'documentHighlight':
-          trackDisposable(lang, features.documentHighlightProvider.register(target, {
+          monaco.languages.registerDocumentHighlightProvider(lang, {
             provideDocumentHighlights: async (model: any, position: any) => {
               try {
                 const result = await sendRequest('languages/provideDocumentHighlights', {
@@ -2363,11 +2316,11 @@ async function handleRegisterLanguageProvider(
                 return []
               }
             },
-          }))
+          })
           break
 
         case 'foldingRange':
-          trackDisposable(lang, features.foldingRangeProvider.register(target, {
+          monaco.languages.registerFoldingRangeProvider(lang, {
             provideFoldingRanges: async (model: any) => {
               try {
                 const result = await sendRequest('languages/provideFoldingRanges', {
@@ -2375,9 +2328,9 @@ async function handleRegisterLanguageProvider(
                   languageId: lang,
                 })
                 const kindMap: Record<string, any> = {
-                  comment: FoldingRangeKind?.Comment,
-                  imports: FoldingRangeKind?.Imports,
-                  region: FoldingRangeKind?.Region,
+                  comment: monaco.languages.FoldingRangeKind?.Comment,
+                  imports: monaco.languages.FoldingRangeKind?.Imports,
+                  region: monaco.languages.FoldingRangeKind?.Region,
                 }
                 // FoldingRange uses 0-based lines; Monaco wants 1-based.
                 return (Array.isArray(result) ? result : []).map((f: any) => ({
@@ -2389,11 +2342,11 @@ async function handleRegisterLanguageProvider(
                 return []
               }
             },
-          }))
+          })
           break
 
         case 'documentLink':
-          trackDisposable(lang, features.linkProvider.register(target, {
+          monaco.languages.registerLinkProvider(lang, {
             provideLinks: async (model: any) => {
               try {
                 const result = await sendRequest('languages/provideDocumentLinks', {
@@ -2415,11 +2368,11 @@ async function handleRegisterLanguageProvider(
                 return { links: [], dispose() {} }
               }
             },
-          }))
+          })
           break
 
         case 'inlayHints':
-          trackDisposable(lang, features.inlayHintsProvider.register(target, {
+          monaco.languages.registerInlayHintsProvider(lang, {
             provideInlayHints: async (model: any, range: any) => {
               try {
                 const result = await sendRequest('languages/provideInlayHints', {
@@ -2446,11 +2399,11 @@ async function handleRegisterLanguageProvider(
                 return { hints: [], dispose() {} }
               }
             },
-          }))
+          })
           break
 
         case 'rangeFormatting':
-          trackDisposable(lang, features.documentRangeFormattingEditProvider.register(target, {
+          monaco.languages.registerDocumentRangeFormattingEditProvider(lang, {
             provideDocumentRangeFormattingEdits: async (model: any, range: any, options: any) => {
               try {
                 const result = await sendRequest('languages/provideDocumentRangeFormattingEdits', {
@@ -2475,11 +2428,11 @@ async function handleRegisterLanguageProvider(
                 return []
               }
             },
-          }))
+          })
           break
 
         case 'onTypeFormatting':
-          trackDisposable(lang, features.onTypeFormattingEditProvider.register(target, {
+          monaco.languages.registerOnTypeFormattingEditProvider(lang, {
             autoFormatTriggerCharacters: params?.triggerCharacters || [],
             provideOnTypeFormattingEdits: async (model: any, position: any, ch: string, options: any) => {
               try {
@@ -2503,11 +2456,11 @@ async function handleRegisterLanguageProvider(
                 return []
               }
             },
-          }))
+          })
           break
 
         case 'selectionRange':
-          trackDisposable(lang, features.selectionRangeProvider.register(target, {
+          monaco.languages.registerSelectionRangeProvider(lang, {
             provideSelectionRanges: async (model: any, positions: any[]) => {
               try {
                 const result = await sendRequest('languages/provideSelectionRanges', {
@@ -2530,11 +2483,11 @@ async function handleRegisterLanguageProvider(
                 return []
               }
             },
-          }))
+          })
           break
 
         case 'color':
-          trackDisposable(lang, features.colorProvider.register(target, {
+          monaco.languages.registerColorProvider(lang, {
             provideDocumentColors: async (model: any) => {
               try {
                 const result = await sendRequest('languages/provideDocumentColors', {
@@ -2581,11 +2534,11 @@ async function handleRegisterLanguageProvider(
                 return []
               }
             },
-          }))
+          })
           break
 
         case 'linkedEditing':
-          trackDisposable(lang, features.linkedEditingRangeProvider.register(target, {
+          monaco.languages.registerLinkedEditingRangeProvider(lang, {
             provideLinkedEditingRanges: async (model: any, position: any) => {
               try {
                 const result = await sendRequest('languages/provideLinkedEditingRanges', {
@@ -2607,7 +2560,7 @@ async function handleRegisterLanguageProvider(
                 return null
               }
             },
-          }))
+          })
           break
       }
     }
@@ -2618,13 +2571,13 @@ async function handleRegisterLanguageProvider(
 
 // ─── WorkspaceEdit conversion helper ────────────────────────────────────────
 
-function convertWorkspaceEdit(edit: any, uriFactory: { file(path: string): any }): any {
+function convertWorkspaceEdit(edit: any, monaco: any): any {
   const edits: any[] = []
   const changes = edit.changes || {}
   for (const [uri, textEdits] of Object.entries(changes)) {
     for (const te of textEdits as any[]) {
       edits.push({
-        resource: uriFactory.file(uri),
+        resource: monaco.Uri.file(uri),
         textEdit: {
           range: {
             startLineNumber: (te.range?.start?.line ?? 0) + 1,
@@ -2644,7 +2597,7 @@ function convertWorkspaceEdit(edit: any, uriFactory: { file(path: string): any }
       if (change.textDocument && change.edits) {
         for (const te of change.edits) {
           edits.push({
-            resource: uriFactory.file(change.textDocument.uri || ''),
+            resource: monaco.Uri.file(change.textDocument.uri || ''),
             textEdit: {
               range: {
                 startLineNumber: (te.range?.start?.line ?? 0) + 1,
