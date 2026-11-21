@@ -31,6 +31,8 @@
 
 ## What is Hanzo?
 
+[![Open in Hanzo](https://hanzo.app/badges/open-in-hanzo.svg)](https://hanzo.app/dev/open?repo=github.com/hanzoai/ide&ref=main&action=open) [![Edit with Hanzo](https://hanzo.app/badges/edit-with-hanzo.svg)](https://hanzo.app/dev/open?repo=github.com/hanzoai/ide&ref=main&action=edit) [![Deploy with Hanzo](https://hanzo.app/badges/deploy-with-hanzo.svg)](https://hanzo.app/dev/open?repo=github.com/hanzoai/ide&ref=main&action=deploy)
+
 Hanzo runs the VS Code workbench — the editor surface, the extension model, the keybindings you already know. Everything under it is ours.
 
 Under the surface it's a Rust-native desktop application with a biologically-inspired memory system called **Engram**, 10-layer security architecture, and AST-level code intelligence built on tree-sitter — all in compiled Rust.
