@@ -9,8 +9,8 @@ on:
         type: string
   push:
     tags:
-      - '[0-9]+.[0-9]+.[0-9]+*'
-      - 'v[0-9]+.[0-9]+.[0-9]+*'
+      - '[0-9]*.[0-9]*.[0-9]*'
+      - 'v[0-9]*.[0-9]*.[0-9]*'
 
 defaults:
   run:
@@ -19,7 +19,7 @@ defaults:
 jobs:
   prebuild:
     name: Prebuild & Version Check
-    runs-on: [self-hosted, macOS, ARM64]
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     outputs:
       version: ${{ steps.package-version.outputs.version }}
@@ -64,10 +64,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # linux-amd64 -> ARC scale set "linux-amd64" (evo)
           - id: linux-amd64
             arch: x86_64-unknown-linux-gnu
-            os: linux-amd64
+            os: ubuntu-24.04
             tauri_target: ''
             installer_glob: 'appimage/*.AppImage'
             updater_glob: 'appimage/*.AppImage.tar.gz'
@@ -76,10 +75,9 @@ jobs:
             stable_deb: hanzo-ide-linux.deb
             stable_deb_alias: hanzo-linux.deb
 
-          # linux-arm64 -> ARC scale-set "hanzoai-arm64" (spark)
           - id: linux-arm64
             arch: aarch64-unknown-linux-gnu
-            os: [self-hosted, Linux, ARM64]
+            os: ubuntu-24.04-arm
             tauri_target: ''
             installer_glob: 'appimage/*.AppImage'
             updater_glob: 'appimage/*.AppImage.tar.gz'
@@ -88,11 +86,9 @@ jobs:
             stable_deb: hanzo-ide-linux-arm64.deb
             stable_deb_alias: hanzo-linux-arm64.deb
 
-          # macos-universal -> [self-hosted, macOS, ARM64] (dbc)
-          # Builds universal .dmg (Apple Silicon + Intel)
           - id: macos-universal
             arch: aarch64-apple-darwin
-            os: [self-hosted, macOS, ARM64]
+            os: macos-15
             tauri_target: 'universal-apple-darwin'
             installer_glob: 'dmg/*.dmg'
             updater_glob: 'macos/*.app.tar.gz'
@@ -101,10 +97,9 @@ jobs:
             stable_deb: ''
             stable_deb_alias: ''
 
-          # windows-amd64 -> [self-hosted, Windows, X64] (evo Windows VM)
           - id: windows-amd64
             arch: x86_64-pc-windows-msvc
-            os: [self-hosted, Windows, X64]
+            os: windows-latest
             tauri_target: ''
             installer_glob: 'nsis/*-setup.exe'
             updater_glob: 'nsis/*-setup.nsis.zip'
@@ -134,14 +129,42 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Node.js 20
+      - name: (Linux) Install system dependencies
+        if: ${{ contains(matrix.arch, 'linux') }}
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            clang \
+            libclang-dev \
+            cmake \
+            pkg-config \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            squashfs-tools
+
+      - name: Set up Node.js 22
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            node-extension-host/package-lock.json
 
       - name: Install Node dependencies
-        run: npm ci
+        shell: bash
+        run: |
+          npm ci
+          npm --prefix node-extension-host ci
 
       - name: (Unix) Ensure Rust toolchain on PATH
         if: ${{ matrix.arch != 'x86_64-pc-windows-msvc' }}
@@ -163,36 +186,87 @@ jobs:
           RUSTUP="$(command -v rustup || echo "$HOME/.cargo/bin/rustup")"
           "$RUSTUP" target add aarch64-apple-darwin x86_64-apple-darwin
 
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+
       - name: Build web IDE assets
+        shell: bash
+        env:
+          NODE_OPTIONS: '--max_old_space_size=8192'
         run: npm run build
+
+      - name: Prepare Tauri CI config
+        shell: bash
+        env:
+          RAW_TAURI_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+        run: |
+          if [ -n "$RAW_TAURI_KEY" ]; then
+            printf '%s\n' '{"build":{"beforeBuildCommand":""}}' > src-tauri/tauri.ci.json
+          else
+            printf '%s\n' '{"build":{"beforeBuildCommand":""},"bundle":{"createUpdaterArtifacts":false}}' > src-tauri/tauri.ci.json
+          fi
 
       - name: (Linux) Build Hanzo IDE
         if: ${{ contains(matrix.arch, 'linux') }}
-        run: npx tauri build --verbose --ignore-version-mismatches
+        shell: bash
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          RAW_TAURI_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          RAW_TAURI_PASS: ${{ secrets.TAURI_KEY_PASSWORD }}
           APPIMAGE_EXTRACT_AND_RUN: '1'
+          NO_STRIP: 'true'
           NODE_OPTIONS: '--max_old_space_size=8192'
+        run: |
+          set -euo pipefail
+          if [ -n "$RAW_TAURI_KEY" ]; then
+            export TAURI_SIGNING_PRIVATE_KEY="$RAW_TAURI_KEY"
+            export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$RAW_TAURI_PASS"
+          fi
+          npx tauri build --verbose --ignore-version-mismatches --config src-tauri/tauri.ci.json
+          rm -f src-tauri/tauri.ci.json
 
       - name: (macOS) Build Hanzo IDE (universal)
         if: ${{ matrix.arch == 'aarch64-apple-darwin' }}
-        run: npx tauri build --target universal-apple-darwin --ignore-version-mismatches
+        shell: bash
         env:
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          RAW_APPLE_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          RAW_APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE }}
+          RAW_APPLE_CERT_PASS: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          RAW_TAURI_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          RAW_TAURI_PASS: ${{ secrets.TAURI_KEY_PASSWORD }}
           NODE_OPTIONS: '--max_old_space_size=8192'
+        run: |
+          set -euo pipefail
+          if [ -n "$RAW_APPLE_CERT" ] && [ -n "$RAW_APPLE_IDENTITY" ]; then
+            export APPLE_CERTIFICATE="$RAW_APPLE_CERT"
+            export APPLE_CERTIFICATE_PASSWORD="$RAW_APPLE_CERT_PASS"
+            export APPLE_SIGNING_IDENTITY="$RAW_APPLE_IDENTITY"
+          else
+            export APPLE_SIGNING_IDENTITY="-"
+          fi
+          if [ -n "$RAW_TAURI_KEY" ]; then
+            export TAURI_SIGNING_PRIVATE_KEY="$RAW_TAURI_KEY"
+            export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$RAW_TAURI_PASS"
+          fi
+          npx tauri build --target universal-apple-darwin --ignore-version-mismatches --config src-tauri/tauri.ci.json
+          rm -f src-tauri/tauri.ci.json
 
       - name: (Windows) Build Hanzo IDE
         if: ${{ matrix.arch == 'x86_64-pc-windows-msvc' }}
-        run: npx tauri build --ignore-version-mismatches
+        shell: bash
         env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          RAW_TAURI_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          RAW_TAURI_PASS: ${{ secrets.TAURI_KEY_PASSWORD }}
           NODE_OPTIONS: '--max_old_space_size=8192'
+        run: |
+          set -euo pipefail
+          if [ -n "$RAW_TAURI_KEY" ]; then
+            export TAURI_SIGNING_PRIVATE_KEY="$RAW_TAURI_KEY"
+            export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$RAW_TAURI_PASS"
+          fi
+          npx tauri build --ignore-version-mismatches --config src-tauri/tauri.ci.json
+          rm -f src-tauri/tauri.ci.json
 
       - name: Discover build artifacts
         id: artifacts
@@ -201,9 +275,17 @@ jobs:
           set -uo pipefail
           shopt -s nullglob
           if [ -n "${{ matrix.tauri_target }}" ]; then
-            BUNDLE="src-tauri/target/${{ matrix.tauri_target }}/release/bundle"
+            if [ -d "target/${{ matrix.tauri_target }}/release/bundle" ]; then
+              BUNDLE="target/${{ matrix.tauri_target }}/release/bundle"
+            else
+              BUNDLE="src-tauri/target/${{ matrix.tauri_target }}/release/bundle"
+            fi
           else
-            BUNDLE="src-tauri/target/release/bundle"
+            if [ -d "target/release/bundle" ]; then
+              BUNDLE="target/release/bundle"
+            else
+              BUNDLE="src-tauri/target/release/bundle"
+            fi
           fi
           echo "bundle=$BUNDLE" >> "$GITHUB_OUTPUT"
           inst=("$BUNDLE"/${{ matrix.installer_glob }})
@@ -344,6 +426,9 @@ jobs:
           echo "Signed ${APPIMAGE} and ${CHECKSUMS} with cosign (keyless OIDC)."
 
       - name: Upload binaries to R2 (versioned)
+        if: ${{ env.HAS_R2 == 'true' }}
+        env:
+          HAS_R2: ${{ secrets.R2_ACCESS_KEY_ID != '' }}
         continue-on-error: true
         uses: shallwefootball/s3-upload-action@master
         with:
@@ -355,6 +440,9 @@ jobs:
           destination_dir: ./hanzo-ide/binaries/production/${{ matrix.arch }}/${{ needs.prebuild.outputs.version }}.${{ github.run_number }}/
 
       - name: Upload stable aliases to R2 (latest)
+        if: ${{ env.HAS_R2 == 'true' }}
+        env:
+          HAS_R2: ${{ secrets.R2_ACCESS_KEY_ID != '' }}
         continue-on-error: true
         uses: shallwefootball/s3-upload-action@master
         with:
@@ -407,7 +495,7 @@ jobs:
       - prebuild
       - release-hanzo-ide
     name: Generate & Publish updates.json
-    runs-on: linux-amd64
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - name: Check out repository
@@ -432,6 +520,9 @@ jobs:
           node ./ci-scripts/generate-updates-json.mjs
 
       - name: Upload updates.json to R2
+        if: ${{ env.HAS_R2 == 'true' }}
+        env:
+          HAS_R2: ${{ secrets.R2_ACCESS_KEY_ID != '' }}
         continue-on-error: true
         uses: shallwefootball/s3-upload-action@master
         with:
