@@ -1,6 +1,6 @@
 [package]
 name = "hanzo"
-version = "0.1.0"
+version = "0.1.1"
 description = "AI-native IDE built in Rust"
 authors = ["Eli Bury <eli@hanzo.ai>"]
 license = "Apache-2.0"
