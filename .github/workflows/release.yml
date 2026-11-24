@@ -149,7 +149,8 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             patchelf \
-            squashfs-tools
+            squashfs-tools \
+            xdg-utils
 
       - name: Set up Node.js 22
         uses: actions/setup-node@v4
@@ -365,8 +366,11 @@ jobs:
             fi
           fi
 
-          # Extra: Windows .msi
+          # Extra: Windows .msi + download page x64-setup aliases
           if [ "$ID" = "windows-amd64" ]; then
+            cp "$installer" "dist-release/hanzo-ide-windows-x64-setup.exe"
+            cp "$installer" "dist-release/Hanzo_IDE_${VERSION}_x64-setup.exe"
+            cp "$installer" "dist-latest/hanzo-ide-windows-x64-setup.exe"
             msi=$(ls $BUNDLE/msi/*.msi 2>/dev/null | head -n1 || true)
             if [ -n "$msi" ]; then
               cp "$msi" "dist-release/Hanzo-IDE-${VERSION}-${ID}.msi"
