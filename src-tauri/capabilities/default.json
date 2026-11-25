@@ -5,7 +5,24 @@
   "windows": ["main", "hanzo-chat-detached", "hanzo-*"],
   "local": true,
   "remote": {
-    "urls": ["http://localhost:*", "http://localhost:*?*"]
+    "urls": [
+      "http://localhost:*",
+      "http://localhost:*/*",
+      "http://localhost:*#*",
+      "http://localhost:*/*#*",
+      "http://localhost:*?*",
+      "http://localhost:*/*?*",
+      "http://localhost:*?*#*",
+      "http://localhost:*/*?*#*",
+      "http://127.0.0.1:*",
+      "http://127.0.0.1:*/*",
+      "http://127.0.0.1:*#*",
+      "http://127.0.0.1:*/*#*",
+      "http://127.0.0.1:*?*",
+      "http://127.0.0.1:*/*?*",
+      "http://127.0.0.1:*?*#*",
+      "http://127.0.0.1:*/*?*#*"
+    ]
   },
   "permissions": [
     "allow-hanzo-ide-commands",

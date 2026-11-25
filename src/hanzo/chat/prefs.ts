@@ -21,6 +21,7 @@ export interface ChatPrefs {
   thinkingLevel: string
   planMode: boolean
   selectedAgentId: string | null
+  selectedModel?: string | null
 }
 
 const DEFAULTS: ChatPrefs = {
@@ -28,6 +29,7 @@ const DEFAULTS: ChatPrefs = {
   thinkingLevel: 'none',
   planMode: false,
   selectedAgentId: null,
+  selectedModel: null,
 }
 
 /**
@@ -47,6 +49,7 @@ export function loadPrefs(): ChatPrefs {
       thinkingLevel: validThinkingLevel(parsed.thinkingLevel) ?? DEFAULTS.thinkingLevel,
       planMode: typeof parsed.planMode === 'boolean' ? parsed.planMode : DEFAULTS.planMode,
       selectedAgentId: typeof parsed.selectedAgentId === 'string' ? parsed.selectedAgentId : null,
+      selectedModel: typeof parsed.selectedModel === 'string' && parsed.selectedModel.trim() ? parsed.selectedModel.trim() : null,
     }
     if (parsed.approvalMode === 'yolo') {
       savePrefs(prefs)

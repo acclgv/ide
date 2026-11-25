@@ -10,7 +10,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { tauri } from '../tauri.ts'
 import { S } from './state.ts'
-import { HANZO_OLLAMA_MODEL_PRESETS, HANZO_ZEN_MODEL_PRESETS } from '../theme.ts'
+import { HANZO_DEFAULT_MODEL, HANZO_OLLAMA_MODEL_PRESETS, HANZO_ZEN_MODEL_PRESETS } from '../theme.ts'
 
 export const PROVIDER_DEFS = [
   { id: 'hanzo',      kind: 'openai',     label: 'Hanzo (Zen)', placeholder: 'hk-...',     url: 'https://api.hanzo.ai/v1',                          models: [...HANZO_ZEN_MODEL_PRESETS] },
@@ -40,7 +40,7 @@ const LOCAL_PROBES: readonly ProbeCandidate[] = [
     kind: 'openai',
     baseUrl: 'http://127.0.0.1:1235/v1',
     probeUrl: 'http://127.0.0.1:1235/v1/models',
-    fallbackModel: 'zen6-coder',
+    fallbackModel: HANZO_DEFAULT_MODEL,
   },
   {
     id: 'hanzod-local',
@@ -48,7 +48,7 @@ const LOCAL_PROBES: readonly ProbeCandidate[] = [
     kind: 'openai',
     baseUrl: 'http://127.0.0.1:3690/v1',
     probeUrl: 'http://127.0.0.1:3690/v1/models',
-    fallbackModel: 'zen6-coder',
+    fallbackModel: HANZO_DEFAULT_MODEL,
   },
   {
     id: 'hanzo-engine-local',
@@ -56,7 +56,7 @@ const LOCAL_PROBES: readonly ProbeCandidate[] = [
     kind: 'openai',
     baseUrl: 'http://127.0.0.1:36900/v1',
     probeUrl: 'http://127.0.0.1:36900/v1/models',
-    fallbackModel: 'zen6-coder',
+    fallbackModel: HANZO_DEFAULT_MODEL,
   },
   {
     id: 'ollama',
@@ -135,7 +135,7 @@ export async function probeAndAutoSeedProviders(force = false): Promise<void> {
       return
     }
 
-    // Seed Zen presets so the Model picker always has crisp Zen 6 defaults ready.
+    // Seed Enso + Zen presets so the Model picker always defaults to `enso` out of the box.
     if (existingProviders.length === 0) {
       await invoke('engine_upsert_provider', {
         provider: {
@@ -144,17 +144,17 @@ export async function probeAndAutoSeedProviders(force = false): Promise<void> {
           kind: 'openai',
           api_key: '',
           base_url: 'https://api.hanzo.ai/v1',
-          default_model: 'zen6-coder',
+          default_model: HANZO_DEFAULT_MODEL,
           enabled_models: [...HANZO_ZEN_MODEL_PRESETS],
         },
       }).catch(() => {})
       const latest = await invoke<any>('engine_get_config').catch(() => null)
-      if (latest && !latest.default_model) {
+      if (latest && (!latest.default_model || latest.default_model === 'zen6-coder')) {
         await invoke('engine_set_config', {
-          config: { ...latest, default_provider: 'hanzo', default_model: 'zen6-coder' },
+          config: { ...latest, default_provider: 'hanzo', default_model: HANZO_DEFAULT_MODEL },
         }).catch(() => {})
       }
-      S.selectedModel ??= 'zen6-coder'
+      S.selectedModel ??= HANZO_DEFAULT_MODEL
     }
     S.needsProviderSetup = true
   } catch {

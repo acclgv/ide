@@ -317,12 +317,18 @@ export async function initializeWorkbench(): Promise<void> {
       ...getEditorServiceOverride(async (resource: any, _options: any, _sideBySide: any) => {
         // B28: route open-editor requests through vscode.open so internal
         // navigation (peek references, cross-file go-to-definition) works.
-        // The signature is loosely typed in @codingame/monaco-vscode-api;
-        // runtime reality is that `resource` is either a URI or carries
-        // `.object.textEditorModel.uri`. Try both.
+        // Never attempt to open a directory URI as a text editor tab!
         const uri = resource?.scheme ? resource
           : (resource?.object?.textEditorModel?.uri ?? resource?.resource ?? null)
         if (!uri || uri.scheme !== 'file') return false
+        if (tauri()) {
+          try {
+            const { invoke } = await import('@tauri-apps/api/core')
+            const fsPath = uri.fsPath || uri.path
+            const s = await invoke<{ type: number }>('ide_stat', { path: fsPath })
+            if (s?.type === 2) return false
+          } catch { /* non-fatal */ }
+        }
         try {
           const cmdModule = await import(
             '@codingame/monaco-vscode-api/vscode/vs/platform/commands/common/commands'

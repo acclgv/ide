@@ -499,7 +499,7 @@ export async function initWorkspaceServices(): Promise<void> {
   console.log('[hanzo-workspace] initializing services for', workspace)
   setWorkspacePath(workspace)
   void notifyEngineWorkspace(workspace)
-  void autoOpenWorkspaceEntryFileIfEmpty(workspace)
+  void closeStaleDirectoryEditors().then(() => autoOpenWorkspaceEntryFileIfEmpty(workspace))
 
   // Mark this path as emitted so if watchWorkspaceFolders fires later,
   // it won't emit a duplicate open-workspace event.
@@ -534,11 +534,49 @@ export async function initWorkspaceServices(): Promise<void> {
   })
 }
 
+async function closeStaleDirectoryEditors(): Promise<void> {
+  if (!tauri()) return
+  try {
+    const { getService, IEditorGroupsService } = await import('@codingame/monaco-vscode-api/services')
+    const groupsSvc = (await getService(IEditorGroupsService)) as any
+    const groups: any[] = groupsSvc?.groups ?? []
+    for (const group of groups) {
+      const editors: any[] = [...(group?.editors ?? [])]
+      for (const ed of editors) {
+        const res = ed?.resource
+        if (!res || res.scheme !== 'file') continue
+        const p = res.fsPath || res.path
+        if (!p) continue
+        try {
+          const s = await invoke<{ type: number }>('ide_stat', { path: p })
+          if (s?.type === 2) {
+            await group.closeEditor?.(ed)
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  } catch {
+    /* non-fatal */
+  }
+}
+
 async function openUriViaVsCodeOpen(
   uri: URI,
   options?: Record<string, unknown>,
 ): Promise<boolean> {
   try {
+    if (tauri() && uri.scheme === 'file') {
+      const p = uri.fsPath || uri.path
+      if (p) {
+        const s = await invoke<{ type: number }>('ide_stat', { path: p }).catch(() => null)
+        if (s?.type === 2) {
+          openWorkspaceFolderPath(p)
+          return true
+        }
+      }
+    }
     const { StandaloneServices } = await import('@codingame/monaco-vscode-api/services')
     const { IWorkbenchLayoutService } = await import(
       '@codingame/monaco-vscode-api/vscode/vs/workbench/services/layout/browser/layoutService.service'

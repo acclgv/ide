@@ -29,7 +29,7 @@ const LOCAL_AI_ENDPOINTS: readonly LocalEndpointSpec[] = [
     baseUrl: 'http://127.0.0.1:36900/v1',
     probeUrl: 'http://127.0.0.1:36900/v1/models',
     kind: 'openai',
-    fallbackModel: 'zen6-coder',
+    fallbackModel: 'enso',
     desc: 'http://127.0.0.1:36900/v1 · Native local inference daemon',
   },
   {
@@ -38,7 +38,7 @@ const LOCAL_AI_ENDPOINTS: readonly LocalEndpointSpec[] = [
     baseUrl: 'http://127.0.0.1:1235/v1',
     probeUrl: 'http://127.0.0.1:1235/v1/models',
     kind: 'openai',
-    fallbackModel: 'zen6-coder',
+    fallbackModel: 'enso',
     desc: 'http://127.0.0.1:1235/v1 · Local OpenAI-compatible router',
   },
   {
@@ -47,7 +47,7 @@ const LOCAL_AI_ENDPOINTS: readonly LocalEndpointSpec[] = [
     baseUrl: 'http://127.0.0.1:3690/v1',
     probeUrl: 'http://127.0.0.1:3690/v1/models',
     kind: 'openai',
-    fallbackModel: 'zen6-coder',
+    fallbackModel: 'enso',
     desc: 'http://127.0.0.1:3690/v1 · Unified local node inference + RPC',
   },
   {

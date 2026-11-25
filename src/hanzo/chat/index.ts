@@ -17,7 +17,12 @@ import { zenIcon } from '../brand.ts'
 import { listen, tauri } from '../tauri.ts'
 import { api } from '../cloud.ts'
 import { orgHeaders } from '../iam.ts'
-import { HANZO_OLLAMA_MODEL_PRESETS, HANZO_ZEN_MODEL_PRESETS, isAllowedModelId } from '../theme.ts'
+import {
+  HANZO_DEFAULT_MODEL,
+  HANZO_OLLAMA_MODEL_PRESETS,
+  HANZO_ZEN_MODEL_PRESETS,
+  isAllowedModelId,
+} from '../theme.ts'
 import {
   buildMcpIntegrationsDrawer,
   openMcpToolRunnerModal,
@@ -94,6 +99,7 @@ async function loadHistory(): Promise<void> {
 }
 
 async function loadModels(): Promise<void> {
+  const prefs = loadPrefs()
   if (!tauri()) {
     const res = await fetch(`${api}/v1/models`, { headers: orgHeaders() }).catch(() => null)
     const ids: string[] = res?.ok
@@ -102,17 +108,33 @@ async function loadModels(): Promise<void> {
           .filter((id: string) => isAllowedModelId(id))
       : [...HANZO_ZEN_MODEL_PRESETS]
     cachedCatalogModels = ids.length ? ids : [...HANZO_ZEN_MODEL_PRESETS]
-    S.selectedModel ??= cachedCatalogModels.includes('zen6-coder')
-      ? 'zen6-coder'
-      : cachedCatalogModels[0] ?? 'zen6-coder'
+    S.selectedModel =
+      prefs.selectedModel ||
+      (cachedCatalogModels.includes(HANZO_DEFAULT_MODEL)
+        ? HANZO_DEFAULT_MODEL
+        : cachedCatalogModels[0] ?? HANZO_DEFAULT_MODEL)
     S.onModelsUpdated?.()
     return
   }
   try {
     const config = await invoke<any>('engine_get_config')
-    S.selectedModel = config?.default_model || S.selectedModel || 'zen6-coder'
+    if (prefs.selectedModel) {
+      S.selectedModel = prefs.selectedModel
+    } else if (
+      !config?.default_model ||
+      (config.default_model === 'zen6-coder' && (!config.default_provider || config.default_provider === 'hanzo'))
+    ) {
+      S.selectedModel = HANZO_DEFAULT_MODEL
+      if (config && config.default_model !== HANZO_DEFAULT_MODEL) {
+        void invoke('engine_set_config', {
+          config: { ...config, default_model: HANZO_DEFAULT_MODEL },
+        }).catch(() => {})
+      }
+    } else {
+      S.selectedModel = config.default_model
+    }
   } catch {
-    S.selectedModel ??= 'zen6-coder'
+    S.selectedModel = prefs.selectedModel || HANZO_DEFAULT_MODEL
   }
 }
 
@@ -124,9 +146,9 @@ export async function updateModelSelect(): Promise<void> {
   try {
     const config = await invoke<any>('engine_get_config')
     const providers: any[] = config?.providers ?? []
-    const current = S.selectedModel || 'zen6-coder'
+    const current = S.selectedModel || HANZO_DEFAULT_MODEL
 
-    const models = new Set<string>(['zen6-coder'])
+    const models = new Set<string>([HANZO_DEFAULT_MODEL, ...HANZO_ZEN_MODEL_PRESETS])
     if (config?.default_model && isAllowedModelId(config.default_model)) {
       models.add(config.default_model)
     }
@@ -156,11 +178,11 @@ export async function updateModelSelect(): Promise<void> {
     for (const m of HANZO_ZEN_MODEL_PRESETS) models.add(m)
     if (current && isAllowedModelId(current)) models.add(current)
     cachedCatalogModels = Array.from(models)
-    if (!S.selectedModel) S.selectedModel = 'zen6-coder'
+    if (!S.selectedModel) S.selectedModel = HANZO_DEFAULT_MODEL
     S.onModelsUpdated?.()
   } catch {
     cachedCatalogModels = [...HANZO_ZEN_MODEL_PRESETS]
-    if (!S.selectedModel) S.selectedModel = 'zen6-coder'
+    if (!S.selectedModel) S.selectedModel = HANZO_DEFAULT_MODEL
     S.onModelsUpdated?.()
   }
 }
@@ -182,7 +204,7 @@ export function build(container: HTMLElement, opts: { detached?: boolean } = {})
   S.approvalMode = prefs.approvalMode
   S.thinkingLevel = prefs.thinkingLevel || 'none'
   S.planMode = prefs.planMode
-  S.selectedModel = S.selectedModel || 'zen6-coder'
+  S.selectedModel = prefs.selectedModel || S.selectedModel || HANZO_DEFAULT_MODEL
   const prefsAgentId = prefs.selectedAgentId
 
   function persistPrefs(): void {
@@ -191,6 +213,7 @@ export function build(container: HTMLElement, opts: { detached?: boolean } = {})
       thinkingLevel: S.thinkingLevel,
       planMode: S.planMode,
       selectedAgentId: S.selectedAgent?.agent_id ?? null,
+      selectedModel: S.selectedModel ?? HANZO_DEFAULT_MODEL,
     })
   }
 
@@ -541,11 +564,12 @@ export function build(container: HTMLElement, opts: { detached?: boolean } = {})
     title: 'Select AI model',
     variant: 'pill',
     openDirection: 'up',
-    placeholderLabel: 'zen6-coder',
+    placeholderLabel: HANZO_DEFAULT_MODEL,
     options: HANZO_ZEN_MODEL_PRESETS.map((m) => ({ value: m, label: m })),
-    initialValue: S.selectedModel || 'zen6-coder',
+    initialValue: S.selectedModel || HANZO_DEFAULT_MODEL,
     onChange: async (val) => {
-      S.selectedModel = val || 'zen6-coder'
+      S.selectedModel = val || HANZO_DEFAULT_MODEL
+      persistPrefs()
       if (tauri()) {
         try {
           const cfg = await invoke<any>('engine_get_config')
@@ -562,7 +586,7 @@ export function build(container: HTMLElement, opts: { detached?: boolean } = {})
   S.onModelsUpdated = () => {
     const list = cachedCatalogModels.length ? cachedCatalogModels : [...HANZO_ZEN_MODEL_PRESETS]
     const opts: ChatDropdownOption[] = list.map((m) => ({ value: m, label: m }))
-    modelDropdown.setOptions(opts, S.selectedModel || 'zen6-coder')
+    modelDropdown.setOptions(opts, S.selectedModel || HANZO_DEFAULT_MODEL)
   }
 
   const effortDropdown = createChatDropdown({

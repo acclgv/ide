@@ -355,7 +355,7 @@ export function openHanzoSettingsModal(initialSection: HanzoSettingsSectionId = 
       detectCard.appendChild(
         makeRow(
           'Model routing',
-          `Active default: ${config?.default_model || 'zen6-coder'} (${config?.default_provider || 'hanzo'})`,
+          `Active default: ${config?.default_model || 'enso'} (${config?.default_provider || 'hanzo'})`,
           detectBtn,
         ),
       )
@@ -396,7 +396,7 @@ export function openHanzoSettingsModal(initialSection: HanzoSettingsSectionId = 
         const modelInp = document.createElement('input')
         modelInp.type = 'text'
         modelInp.className = 'hz-settings-input'
-        modelInp.placeholder = 'Default model ID (e.g. zen6-coder)'
+        modelInp.placeholder = 'Default model ID (e.g. enso)'
         modelInp.value = saved?.default_model || selectedDef.models[0] || ''
 
         const presetRow = document.createElement('div')
@@ -425,7 +425,7 @@ export function openHanzoSettingsModal(initialSection: HanzoSettingsSectionId = 
         saveBtn.className = 'hz-settings-btn hz-settings-btn--primary'
         saveBtn.textContent = 'Save & Set Default'
         saveBtn.addEventListener('click', async () => {
-          const model = modelInp.value.trim() || selectedDef.models[0] || 'zen6-coder'
+          const model = modelInp.value.trim() || selectedDef.models[0] || 'enso'
           saveBtn.textContent = 'Saving…'
           try {
             const enabled = Array.from(new Set([...selectedDef.models, model]))

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import {
   HANZO_CLAY_PALETTE,
   HANZO_DEFAULT_KEYBINDINGS,
+  HANZO_DEFAULT_MODEL,
   HANZO_IAM_DEFAULTS,
   HANZO_LIGHT_PALETTE,
   HANZO_OLLAMA_MODEL_PRESETS,
@@ -97,10 +98,13 @@ test('Workbench defaults hide permanent Activity Bar and contain zero VS Code bl
   assert.ok(chatMainTs.includes("import '@hanzo/font/css'"), 'chat-main.ts must import @hanzo/font/css')
 })
 
-test('Zen 6 and Qwen3+ model policy rejects all qwen2 and legacy zen4/zen5 models', () => {
+test('Default model is enso and Zen 6 / Qwen3+ model policy rejects qwen2 and legacy zen4/zen5', () => {
+  assert.equal(HANZO_DEFAULT_MODEL, 'enso')
+  assert.equal(HANZO_ZEN_MODEL_PRESETS[0], 'enso')
   for (const m of [...HANZO_ZEN_MODEL_PRESETS, ...HANZO_OLLAMA_MODEL_PRESETS]) {
     assert.equal(isAllowedModelId(m), true, `expected ${m} to be allowed`)
   }
+  assert.equal(isAllowedModelId('enso'), true)
   assert.equal(isAllowedModelId('zen6-coder'), true)
   assert.equal(isAllowedModelId('enso-auto'), true)
   assert.equal(isAllowedModelId('qwen3-coder:30b'), true)
@@ -196,10 +200,20 @@ test('Zed-speed quick-file URL parsing, scratch pill formatting & W3C Linux corn
   assert.ok(!overridesCss.includes('clip-path: inset(0 round 12px)'), 'must not use root clip-path on Linux')
   assert.ok(overridesCss.includes('border-radius: 12px !important;'))
   assert.ok(overridesCss.includes("html[data-zen-single-tab='true']"))
+  assert.ok(
+    overridesCss.includes('textarea:not(.hanzo-chat-textarea):focus-visible'),
+    'overrides.css must not draw a rectangular focus outline inside rounded chat composer',
+  )
+  assert.ok(
+    overridesCss.includes('.monaco-workbench .part.auxiliarybar .pane-body > .monaco-scrollable-element'),
+    'auxiliarybar scrollable chain must stretch 100% height so composer anchors flush to bottom',
+  )
 
   const chatCss = fs.readFileSync(path.join(rootDir, 'src/hanzo/chat/styles.css'), 'utf8')
   assert.ok(chatCss.includes('border-radius: 16px;'))
   assert.ok(chatCss.includes('border: 1px solid #262626;'))
+  assert.ok(chatCss.includes('margin-top: auto !important;'))
+  assert.ok(chatCss.includes('.hanzo-chat-textarea:focus-visible'))
 
   // Verify Open Folder forces Explorer open & TauriFileSystemProvider works outside $HOME
   const mem = new Map<string, string>()
@@ -233,6 +247,8 @@ test('Zed-speed quick-file URL parsing, scratch pill formatting & W3C Linux corn
   const defaultCap = fs.readFileSync(path.join(rootDir, 'src-tauri/capabilities/default.json'), 'utf8')
   const appPermToml = fs.readFileSync(path.join(rootDir, 'src-tauri/permissions/app.toml'), 'utf8')
   assert.ok(defaultCap.includes('allow-hanzo-ide-commands'), 'release localhost ACL must include allow-hanzo-ide-commands')
+  assert.ok(defaultCap.includes('"http://localhost:*#*"'), 'remote ACL must match URL hash routes (#/path/to/folder)')
+  assert.ok(defaultCap.includes('"http://localhost:*?*#*"'), 'remote ACL must match query + hash routes')
   for (const cmd of [
     'ide_list_dir',
     'ide_read_file_bytes',

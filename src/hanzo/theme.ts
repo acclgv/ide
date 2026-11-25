@@ -222,17 +222,21 @@ export const HANZO_DEFAULT_KEYBINDINGS: readonly HanzoShortcutSpec[] = [
   },
 ] as const
 
+export const HANZO_DEFAULT_MODEL = 'enso'
+
 export const HANZO_ZEN_MODEL_PRESETS = [
+  'enso',
+  'enso-auto',
+  'enso-pro',
   'zen6-coder',
   'zen6',
   'zen6-flash',
   'zen6-max',
-  'enso-auto',
-  'enso-pro',
   'zen-vl',
 ] as const
 
 export const HANZO_OLLAMA_MODEL_PRESETS = [
+  'enso',
   'zen6-coder',
   'zen6-flash',
   'qwen3-coder:30b',

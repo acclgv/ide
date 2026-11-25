@@ -95,7 +95,7 @@ export const S: ChatState = {
   unlisten: null,
 
   selectedAgent: null,
-  selectedModel: null,
+  selectedModel: 'enso',
   agents: [],
   sessions: [],
   thinkingLevel: 'medium',

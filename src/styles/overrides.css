@@ -151,8 +151,8 @@ body {
 
 a:focus-visible,
 button:focus-visible,
-input:focus-visible,
-textarea:focus-visible,
+input:not(.hanzo-whisper-input):focus-visible,
+textarea:not(.hanzo-chat-textarea):focus-visible,
 select:focus-visible,
 [role='button']:focus-visible,
 [role='tab']:focus-visible,
@@ -162,6 +162,19 @@ select:focus-visible,
   outline: 1px solid var(--hanzo-border-focus, #555555) !important;
   outline-offset: -1px;
   box-shadow: none !important;
+}
+
+.hanzo-chat-composer textarea.hanzo-chat-textarea,
+.hanzo-chat-composer textarea.hanzo-chat-textarea:focus,
+.hanzo-chat-composer textarea.hanzo-chat-textarea:focus-visible,
+.hanzo-chat-composer input.hanzo-whisper-input,
+.hanzo-chat-composer input.hanzo-whisper-input:focus,
+.hanzo-chat-composer input.hanzo-whisper-input:focus-visible {
+  border: none !important;
+  outline: none !important;
+  outline-width: 0 !important;
+  box-shadow: none !important;
+  background: transparent !important;
 }
 
 /* ── 40px Flex Zen Top Bar (`#hanzo-zen-toolbar` + `#workbench-shell` flex child) ── */
@@ -458,12 +471,39 @@ html[data-zen-scratch='true'] .monaco-workbench .breadcrumbs-control {
   width: 100% !important;
   min-height: 0 !important;
   position: relative !important;
+  display: flex !important;
+  flex-direction: column !important;
 }
 
 .monaco-workbench .part.auxiliarybar > .content > .composite,
-.monaco-workbench .part.auxiliarybar .monaco-scrollable-element > div {
+.monaco-workbench .part.auxiliarybar .monaco-pane-view,
+.monaco-workbench .part.auxiliarybar .monaco-split-view2,
+.monaco-workbench .part.auxiliarybar .monaco-split-view2 > .monaco-scrollable-element,
+.monaco-workbench .part.auxiliarybar .split-view-container,
+.monaco-workbench .part.auxiliarybar .split-view-view,
+.monaco-workbench .part.auxiliarybar .pane,
+.monaco-workbench .part.auxiliarybar .pane-body,
+.monaco-workbench .part.auxiliarybar .pane-body > .monaco-scrollable-element,
+.monaco-workbench .part.auxiliarybar .pane-body > .monaco-scrollable-element > div,
+.monaco-workbench .part.auxiliarybar .view-pane-content {
   width: 100% !important;
   height: 100% !important;
+  min-height: 0 !important;
+}
+
+.monaco-workbench .part.auxiliarybar .pane > .pane-header {
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+}
+
+.monaco-workbench .part.auxiliarybar .pane,
+.monaco-workbench .part.auxiliarybar .pane-body,
+.monaco-workbench .part.auxiliarybar .pane-body > .monaco-scrollable-element > div,
+.monaco-workbench .part.auxiliarybar .view-pane-content.hanzo-chat-container {
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 0% !important;
 }
 
 /* ── Contextual `23px` `#000000` Status Bar ───────────────────────────────── */

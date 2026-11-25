@@ -12,10 +12,12 @@
 }
 
 .hanzo-chat-container {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  width: 100%;
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 0% !important;
+  height: 100% !important;
+  min-height: 0 !important;
+  width: 100% !important;
   overflow: hidden;
   background: var(--zen-panel, #0c0c0c);
   color: var(--zen-fg, #e5e5e5);
@@ -25,7 +27,8 @@
 .hanzo-chat-agent-wrap {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  flex: 1 1 0%;
+  height: 100%;
   min-height: 0;
   min-width: 0;
 }
@@ -533,6 +536,7 @@
 /* ── Composer Card (`#141414`, `1px solid #262626`, `16px` radius) ────────── */
 
 .hanzo-chat-input-area {
+  margin-top: auto !important;
   padding: 10px 10px 11px;
   flex-shrink: 0;
 }
@@ -569,16 +573,23 @@
   width: 100%;
 }
 
-.hanzo-chat-textarea {
+.hanzo-chat-textarea,
+.hanzo-chat-textarea:focus,
+.hanzo-chat-textarea:focus-visible,
+.hanzo-chat-textarea:active {
   width: 100%;
   height: 52px;
   min-height: 52px;
   max-height: 168px;
   resize: none;
   background: transparent !important;
-  border: 0 !important;
-  outline: 0 !important;
+  border: none !important;
+  outline: none !important;
+  outline-width: 0 !important;
   box-shadow: none !important;
+  border-radius: 0 !important;
+  -webkit-appearance: none !important;
+  appearance: none !important;
   padding: 0;
   color: var(--zen-fg, #dddddd);
   font-family: var(--hanzo-font-ui);
