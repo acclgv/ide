@@ -2,13 +2,25 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Hanzo file system and core permissions",
-  "windows": ["main", "hanzo-chat-detached"],
+  "windows": ["main", "hanzo-chat-detached", "hanzo-*"],
   "local": true,
   "remote": {
-    "urls": ["http://localhost:*"]
+    "urls": ["http://localhost:*", "http://localhost:*?*"]
   },
   "permissions": [
+    "allow-hanzo-ide-commands",
     "core:default",
+    "core:window:allow-minimize",
+    "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-is-maximized",
+    "core:window:allow-close",
+    "core:window:allow-start-dragging",
+    "core:window:allow-start-resize-dragging",
+    "core:window:allow-set-size",
+    "core:window:allow-set-min-size",
+    "core:window:allow-center",
     "fs:default",
     "fs:scope-home-recursive",
     "fs:scope-desktop-recursive",

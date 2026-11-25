@@ -255,13 +255,17 @@ impl AiProvider for ClaudeCodeProvider {
         debug!("[claude-code] Prompt size: {} bytes", prompt.len());
 
         // Spawn claude CLI
-        let mut child = tokio::process::Command::new(&self.claude_binary)
+        let mut proc_cmd = tokio::process::Command::new(&self.claude_binary);
+        proc_cmd
             .args(&args)
             .env("NO_COLOR", "1")
             .env("TERM", "dumb")
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())  // Capture stderr, don't swallow
+            .stderr(Stdio::piped());
+        #[cfg(target_os = "windows")]
+        proc_cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        let mut child = proc_cmd
             .spawn()
             .map_err(|e| ProviderError::Transport(
                 format!("Failed to spawn claude CLI at '{}': {}", self.claude_binary, e)

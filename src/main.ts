@@ -1,3 +1,4 @@
+import '@hanzo/font/css'
 import './global.css'
 import { initializeWorkbench, initializeDeferredFeatures } from './workbench.ts'
 import { tauri } from './hanzo/tauri.ts'

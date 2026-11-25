@@ -29,7 +29,6 @@ const COMMAND_MAP: Record<string, string> = {
   'view.search': 'workbench.view.search',
   'view.scm': 'workbench.view.scm',
   'view.terminal': 'workbench.action.terminal.toggleTerminal',
-  'app.settings': 'workbench.action.openSettings',
 }
 
 /** Execute a VS Code workbench command through the running monaco-vscode-api. */
@@ -81,6 +80,11 @@ export async function listenForMenuActions(): Promise<void> {
 
     // Hanzo-specific actions.
     switch (id) {
+      case 'app.settings': {
+        const { openHanzoSettingsModal } = await import('./settings-modal.ts')
+        openHanzoSettingsModal('general')
+        break
+      }
       case 'file.open':
         await openFilePicker()
         break

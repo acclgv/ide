@@ -46,6 +46,35 @@ impl McpRegistry {
         Ok(())
     }
 
+    /// Insert an already-connected MCP client without holding the registry mutex during handshake.
+    pub async fn insert_connected(&mut self, client: McpClient) {
+        let id = client.config.id.clone();
+        if let Some(old) = self.clients.remove(&id) {
+            old.shutdown().await;
+        }
+        self.clients.insert(id, client);
+    }
+
+    /// Build the default `Hanzo MCP (HIP-0300)` stdio configuration.
+    pub fn build_hanzo_config(workspace: Option<&str>) -> McpServerConfig {
+        let command = resolve_hanzo_mcp_binary().unwrap_or_else(|| "hanzo-mcp".to_string());
+        let mut args = vec!["--transport".to_string(), "stdio".to_string()];
+        if let Some(ws) = workspace.filter(|w| !w.is_empty()) {
+            args.push("--project-dir".to_string());
+            args.push(ws.to_string());
+        }
+        McpServerConfig {
+            id: HANZO_MCP_SERVER_ID.to_string(),
+            name: "Hanzo MCP (HIP-0300)".to_string(),
+            transport: McpTransport::Stdio,
+            command,
+            args,
+            env: HashMap::new(),
+            url: String::new(),
+            enabled: true,
+        }
+    }
+
     /// Disconnect a specific server.
     pub async fn disconnect(&mut self, id: &str) {
         if let Some(client) = self.clients.remove(id) {
@@ -159,6 +188,32 @@ impl McpRegistry {
                 error: None,
                 tool_count: c.tools.len(),
             });
+        }
+        out
+    }
+
+    /// Detailed list of all tools currently exposed by connected MCP servers.
+    pub fn list_server_tools(&self) -> Vec<McpServerToolInfo> {
+        let mut out = Vec::new();
+        let mut server_ids: Vec<&String> = self.clients.keys().collect();
+        server_ids.sort();
+        for sid in server_ids {
+            if let Some(client) = self.clients.get(sid) {
+                for tool in &client.tools {
+                    let def = mcp_tool_to_def(sid, tool);
+                    out.push(McpServerToolInfo {
+                        server_id: sid.clone(),
+                        server_name: client.config.name.clone(),
+                        name: tool.name.clone(),
+                        prefixed_name: def.function.name,
+                        description: tool
+                            .description
+                            .clone()
+                            .unwrap_or_else(|| "(no description)".to_string()),
+                        input_schema: tool.input_schema.clone(),
+                    });
+                }
+            }
         }
         out
     }
@@ -327,25 +382,27 @@ impl McpRegistry {
         Ok(tool_count)
     }
 
-    /// Check if the n8n MCP server is currently registered.
-    /// Connect the Hanzo tool server over stdio.
+    /// Connect the Hanzo tool server (`hanzo-mcp` · HIP-0300) over stdio.
     ///
-    /// `hanzo-mcp` is installed alongside the Hanzo CLI and reads the same
-    /// `~/.hanzo` credentials, so the IDE inherits whatever `hanzo auth login`
-    /// already established. Tools surface as `mcp_hanzo_{tool_name}`.
-    /// `workspace` scopes the server's filesystem access to the open folder.
+    /// `hanzo-mcp` is installed alongside the Hanzo CLI (`~/.local/bin/hanzo-mcp`
+    /// or `~/.hanzo/bin/hanzo-mcp`) and reads the same `~/.hanzo` credentials,
+    /// so the IDE inherits whatever `hanzo auth login` already established.
+    /// Tools surface as `mcp_hanzo_{tool_name}`.
+    /// `workspace` scopes the server's filesystem access via `--project-dir`.
     pub async fn register_hanzo(&mut self, workspace: Option<&str>) -> Result<usize, String> {
+        let command = resolve_hanzo_mcp_binary()
+            .unwrap_or_else(|| "hanzo-mcp".to_string());
         let mut args = vec!["--transport".to_string(), "stdio".to_string()];
         if let Some(ws) = workspace.filter(|w| !w.is_empty()) {
-            args.push("--project".to_string());
+            args.push("--project-dir".to_string());
             args.push(ws.to_string());
         }
 
         let config = McpServerConfig {
             id: HANZO_MCP_SERVER_ID.to_string(),
-            name: "Hanzo".to_string(),
+            name: "Hanzo MCP (HIP-0300)".to_string(),
             transport: McpTransport::Stdio,
-            command: "hanzo-mcp".to_string(),
+            command,
             args,
             env: HashMap::new(),
             url: String::new(),
@@ -358,7 +415,7 @@ impl McpRegistry {
             .get(HANZO_MCP_SERVER_ID)
             .map(|c| c.tools.len())
             .unwrap_or(0);
-        info!("[mcp] Hanzo tool server connected ({} tools)", count);
+        info!("[mcp] Hanzo HIP-0300 tool server connected ({} tools)", count);
         Ok(count)
     }
 
@@ -374,6 +431,35 @@ impl McpRegistry {
     pub async fn disconnect_n8n(&mut self) {
         self.disconnect(N8N_MCP_SERVER_ID).await;
     }
+}
+
+/// Auto-discover `hanzo-mcp` binary across `~/.local/bin`, `~/.hanzo/bin`,
+/// `/usr/local/bin`, `/opt/homebrew/bin`, and `PATH`.
+pub fn resolve_hanzo_mcp_binary() -> Option<String> {
+    let exe_name = if cfg!(windows) { "hanzo-mcp.exe" } else { "hanzo-mcp" };
+    let mut candidates = Vec::new();
+
+    if let Ok(home) = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")) {
+        let h = std::path::PathBuf::from(&home);
+        candidates.push(h.join(".local").join("bin").join(exe_name));
+        candidates.push(h.join(".hanzo").join("bin").join(exe_name));
+        candidates.push(h.join(".cargo").join("bin").join(exe_name));
+    }
+    candidates.push(std::path::PathBuf::from("/usr/local/bin").join(exe_name));
+    candidates.push(std::path::PathBuf::from("/opt/homebrew/bin").join(exe_name));
+
+    if let Some(path_var) = std::env::var_os("PATH") {
+        for dir in std::env::split_paths(&path_var) {
+            candidates.push(dir.join(exe_name));
+        }
+    }
+
+    for candidate in candidates {
+        if candidate.is_file() {
+            return Some(candidate.to_string_lossy().into_owned());
+        }
+    }
+    None
 }
 
 // ── Conversion helpers ─────────────────────────────────────────────────

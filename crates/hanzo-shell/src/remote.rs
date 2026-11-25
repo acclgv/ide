@@ -67,6 +67,14 @@ fn ssh_base_args(host: &str, user: &Option<String>, port: &Option<u16>, key_path
     args
 }
 
+fn ssh_command(args: &[String]) -> tokio::process::Command {
+    let mut c = tokio::process::Command::new("ssh");
+    c.args(args);
+    #[cfg(target_os = "windows")]
+    c.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    c
+}
+
 // ─── Commands ────────────────────────────────────────────────────────────────
 
 #[tauri::command]
@@ -74,8 +82,7 @@ pub async fn remote_connect(request: RemoteConnectRequest) -> Result<RemoteHostI
     let mut args = ssh_base_args(&request.host, &request.user, &request.port, &request.key_path);
     args.push("echo HANZO_CONNECTED && uname -s && echo $HOME && whoami".to_string());
 
-    let output = tokio::process::Command::new("ssh")
-        .args(&args)
+    let output = ssh_command(&args)
         .output()
         .await
         .map_err(|e| format!("SSH connection failed: {e}"))?;
@@ -117,8 +124,7 @@ pub async fn remote_exec(
     let mut args = ssh_base_args(&host, &user, &port, &None);
     args.push(command);
 
-    let output = tokio::process::Command::new("ssh")
-        .args(&args)
+    let output = ssh_command(&args)
         .output()
         .await
         .map_err(|e| format!("Remote exec failed: {e}"))?;
@@ -140,8 +146,7 @@ pub async fn remote_read_file(
     let mut args = ssh_base_args(&host, &user, &port, &None);
     args.push(format!("cat '{}'", path.replace('\'', "'\\''")));
 
-    let output = tokio::process::Command::new("ssh")
-        .args(&args)
+    let output = ssh_command(&args)
         .output()
         .await
         .map_err(|e| format!("Remote read failed: {e}"))?;
@@ -165,8 +170,7 @@ pub async fn remote_write_file(
     let mut args = ssh_base_args(&host, &user, &port, &None);
     args.push(format!("cat > '{}'", path.replace('\'', "'\\''")));
 
-    let mut child = tokio::process::Command::new("ssh")
-        .args(&args)
+    let mut child = ssh_command(&args)
         .stdin(std::process::Stdio::piped())
         .spawn()
         .map_err(|e| format!("Remote write failed: {e}"))?;
@@ -197,8 +201,7 @@ pub async fn remote_list_dir(
     let mut args = ssh_base_args(&host, &user, &port, &None);
     args.push(format!("ls -1 '{}'", path.replace('\'', "'\\''")));
 
-    let output = tokio::process::Command::new("ssh")
-        .args(&args)
+    let output = ssh_command(&args)
         .output()
         .await
         .map_err(|e| format!("Remote list failed: {e}"))?;

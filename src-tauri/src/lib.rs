@@ -4,7 +4,10 @@
 
 // Hanzo AI crate provides engine + indexer
 
+mod cli_target;
 mod dock_icon;
+mod tray;
+mod wsl;
 
 use hanzo_engine::commands;
 use tauri::Manager;
@@ -34,6 +37,73 @@ When a workspace is open, the AST indexer builds a call graph, type hierarchy, a
 When opening a new workspace or cloning a repo, call `ide_open_workspace` to trigger indexing. Wait for indexing to complete before using `ide_ast_*` tools (try a query — if it returns results, the index is ready).
 "#;
 
+/// Ensure WebKitGTK DMA-BUF renderer workaround is set on Linux before GTK/WebKit boots.
+#[cfg(target_os = "linux")]
+pub fn configure_linux_webkit_env() {
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+        std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+    }
+}
+
+/// Apply Windows 11 DWM immersive dark frame and native rounded window corners.
+#[cfg(target_os = "windows")]
+fn apply_windows_dwm_chrome(window: &tauri::WebviewWindow) {
+    #[link(name = "dwmapi")]
+    extern "system" {
+        fn DwmSetWindowAttribute(
+            hwnd: *mut std::ffi::c_void,
+            dw_attribute: u32,
+            pv_attribute: *const std::ffi::c_void,
+            cb_attribute: u32,
+        ) -> i32;
+    }
+    const DWMWA_USE_IMMERSIVE_DARK_MODE: u32 = 20;
+    const DWMWA_WINDOW_CORNER_PREFERENCE: u32 = 33;
+    const DWMWCP_ROUND: u32 = 2;
+
+    if let Ok(hwnd) = window.hwnd() {
+        let raw = hwnd.0 as *mut std::ffi::c_void;
+        let dark: u32 = 1;
+        let corner: u32 = DWMWCP_ROUND;
+        unsafe {
+            let _ = DwmSetWindowAttribute(
+                raw,
+                DWMWA_USE_IMMERSIVE_DARK_MODE,
+                &dark as *const u32 as *const std::ffi::c_void,
+                std::mem::size_of::<u32>() as u32,
+            );
+            let _ = DwmSetWindowAttribute(
+                raw,
+                DWMWA_WINDOW_CORNER_PREFERENCE,
+                &corner as *const u32 as *const std::ffi::c_void,
+                std::mem::size_of::<u32>() as u32,
+            );
+        }
+    }
+}
+
+fn apply_platform_window_builder<'a, R: tauri::Runtime, M: tauri::Manager<R>>(
+    win: tauri::WebviewWindowBuilder<'a, R, M>,
+) -> tauri::WebviewWindowBuilder<'a, R, M> {
+    #[cfg(target_os = "macos")]
+    let win = win
+        .title_bar_style(tauri::TitleBarStyle::Overlay)
+        .hidden_title(true);
+    #[cfg(target_os = "linux")]
+    let win = win
+        .decorations(false)
+        .transparent(true)
+        .background_color(tauri::window::Color(0, 0, 0, 0));
+    #[cfg(target_os = "windows")]
+    let win = win
+        .decorations(false)
+        .shadow(true)
+        .background_color(tauri::window::Color(0, 0, 0, 255));
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    let win = win.decorations(false);
+    win
+}
+
 /// Open a new Hanzo window (multi-window support)
 #[tauri::command]
 async fn open_new_window(app: tauri::AppHandle, folder_path: Option<String>) -> Result<String, String> {
@@ -47,22 +117,23 @@ async fn open_new_window(app: tauri::AppHandle, folder_path: Option<String>) -> 
         None => WebviewUrl::App("index.html".into()),
     };
 
-    let win = tauri::WebviewWindowBuilder::new(&app, &window_id, url)
-        .title("Hanzo IDE")
-        .inner_size(1440.0, 900.0)
-        .min_inner_size(900.0, 600.0)
-        .resizable(true)
-        .center();
+    let win = apply_platform_window_builder(
+        tauri::WebviewWindowBuilder::new(&app, &window_id, url)
+            .title("Hanzo IDE")
+            .inner_size(1440.0, 900.0)
+            .min_inner_size(900.0, 600.0)
+            .resizable(true)
+            .center(),
+    );
 
-    #[cfg(target_os = "macos")]
-    let win = win
-        .title_bar_style(tauri::TitleBarStyle::Overlay)
-        .hidden_title(true);
-    #[cfg(not(target_os = "macos"))]
-    let win = win.decorations(false);
-
-    win.build()
+    let window = win
+        .build()
         .map_err(|e| format!("Failed to open new window: {e}"))?;
+
+    #[cfg(target_os = "windows")]
+    apply_windows_dwm_chrome(&window);
+    #[cfg(not(target_os = "windows"))]
+    let _ = &window;
 
     log::info!("[hanzo] opened new window: {}", window_id);
     Ok(window_id)
@@ -112,21 +183,23 @@ async fn open_chat_window(app: tauri::AppHandle) -> Result<String, String> {
         return Ok(window_label.to_string());
     }
 
-    let mut builder = tauri::WebviewWindowBuilder::new(
-        &app,
-        window_label,
-        WebviewUrl::App("chat.html".into()),
-    )
-    .title("Hanzo Chat")
-    .inner_size(420.0, 720.0)
-    .min_inner_size(320.0, 480.0)
-    .resizable(true)
-    .decorations(true);
+    #[allow(unused_mut)]
+    let mut builder = apply_platform_window_builder(
+        tauri::WebviewWindowBuilder::new(
+            &app,
+            window_label,
+            WebviewUrl::App("chat.html".into()),
+        )
+        .title("Hanzo Chat")
+        .inner_size(420.0, 720.0)
+        .min_inner_size(320.0, 480.0)
+        .resizable(true),
+    );
 
     // On macOS tie the chat window's lifecycle to the main Hanzo window
     // so minimise / close cascades. On other platforms parent-window
     // tracking is not as clean; the window stays independent and the
-    // user manages it via the OS.
+    // user manages it via the custom frameless chrome.
     #[cfg(target_os = "macos")]
     {
         if let Some(main) = app.get_webview_window("main") {
@@ -134,9 +207,14 @@ async fn open_chat_window(app: tauri::AppHandle) -> Result<String, String> {
         }
     }
 
-    builder
+    let window = builder
         .build()
         .map_err(|e| format!("Failed to open chat window: {e}"))?;
+
+    #[cfg(target_os = "windows")]
+    apply_windows_dwm_chrome(&window);
+    #[cfg(not(target_os = "windows"))]
+    let _ = &window;
 
     log::info!("[hanzo] opened detached chat window: {}", window_label);
     Ok(window_label.to_string())
@@ -154,8 +232,11 @@ async fn close_chat_window(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 
-/// Build the native application menu (macOS menu bar + Windows/Linux window
-/// menu).
+/// Build the native macOS top-of-screen application menu bar.
+///
+/// Linux and Windows intentionally omit native GTK/Win32 menu bars so frameless
+/// windows render only the unified Hanzo custom titlebar chrome (`[F]` menu
+/// button + `[|]` sidebar toggle + `— □ ×` window controls).
 ///
 /// Accelerator policy: Hanzo runs a full VS Code workbench in the webview, and
 /// VS Code owns all the editor keybindings (Cmd+S/N/W/Z/F, Cmd+Shift+P, …). A
@@ -169,13 +250,13 @@ async fn close_chat_window(app: tauri::AppHandle) -> Result<(), String> {
 ///
 /// Custom items carry a dotted id (e.g. `file.save`) forwarded to the frontend
 /// via `menu-action`, which runs the matching VS Code workbench command.
+#[cfg(target_os = "macos")]
 fn build_app_menu(
     handle: &tauri::AppHandle,
 ) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
 
     // App menu (shown under the app name on macOS).
-    #[cfg(target_os = "macos")]
     let app_menu = {
         let dock_icon_submenu = dock_icon::build_dock_icon_submenu(handle)?;
         Submenu::with_items(
@@ -198,25 +279,6 @@ fn build_app_menu(
             ],
         )?
     };
-    #[cfg(not(target_os = "macos"))]
-    let app_menu = Submenu::with_items(
-        handle,
-        "Hanzo",
-        true,
-        &[
-            &PredefinedMenuItem::about(handle, Some("About Hanzo"), Some(AboutMetadata::default()))?,
-            &PredefinedMenuItem::separator(handle)?,
-            &MenuItem::with_id(handle, "app.settings", "Settings…", true, None::<&str>)?,
-            &PredefinedMenuItem::separator(handle)?,
-            &PredefinedMenuItem::services(handle, None)?,
-            &PredefinedMenuItem::separator(handle)?,
-            &PredefinedMenuItem::hide(handle, None)?,
-            &PredefinedMenuItem::hide_others(handle, None)?,
-            &PredefinedMenuItem::show_all(handle, None)?,
-            &PredefinedMenuItem::separator(handle)?,
-            &PredefinedMenuItem::quit(handle, None)?,
-        ],
-    )?;
 
     let file_menu = Submenu::with_items(
         handle,
@@ -379,6 +441,9 @@ fn pick_localhost_port() -> u16 {
 }
 
 pub fn run() {
+    #[cfg(target_os = "linux")]
+    configure_linux_webkit_env();
+
     // Record crashes locally before anything else can panic (startup
     // `.expect()` calls, background threads, the tokio runtime).
     install_panic_hook();
@@ -451,6 +516,8 @@ pub fn run() {
         })
         // Dock icon menu checkmark synchronization state
         .manage(dock_icon::DockIconMenuState::new())
+        // System tray & background hanzod supervisor state
+        .manage(tray::HanzodTrayState::new())
         // ── Plugins ──────────────────────────────────────────────────────────
         .plugin(
             tauri_plugin_log::Builder::new()
@@ -519,21 +586,27 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_dialog::init())
-        // ── Native application menu ───────────────────────────────────────────
-        .menu(|handle| build_app_menu(handle))
-        .on_menu_event(|app, event| {
-            use tauri::Emitter;
-            // Predefined items (copy/paste/undo/quit/…) are handled natively by
-            // the OS and don't reach here. Custom items carry a dotted id
-            // (e.g. "file.save"); forward it to the frontend, which runs the
-            // matching VS Code workbench command.
-            let id = event.id().as_ref();
-            if dock_icon::handle_menu_event(app, id) {
-                return;
-            }
-            let _ = app.emit("menu-action", id.to_string());
-        })
+        .plugin(tauri_plugin_dialog::init());
+
+    // ── Native application menu (macOS only) ──────────────────────────────────
+    // On Linux GTK3, `.menu(...)` attaches a native GTK menu bar even when
+    // `.decorations(false)` is set; on Windows it attaches a Win32 menu bar.
+    // Linux and Windows use our frameless custom Hanzo titlebar chrome instead.
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .menu(|handle| build_app_menu(handle))
+            .on_menu_event(|app, event| {
+                use tauri::Emitter;
+                let id = event.id().as_ref();
+                if dock_icon::handle_menu_event(app, id) {
+                    return;
+                }
+                let _ = app.emit("menu-action", id.to_string());
+            });
+    }
+
+    builder = builder
         // ── Startup background tasks ──────────────────────────────────────────
         .setup(move |app| {
             // Apply persisted macOS Dock icon mode ("branded" | "minimal") on startup.
@@ -542,6 +615,9 @@ pub fn run() {
                 if let Err(e) = dock_icon::apply_dock_icon(app.handle(), mode) {
                     log::warn!("[hanzo] failed to apply startup dock icon mode ({mode}): {e}");
                 }
+            }
+            if let Err(e) = tray::init_system_tray(app.handle()) {
+                log::warn!("[hanzo] system tray initialization skipped: {e}");
             }
             // Logged here (not at builder time) so it lands in hanzo.log —
             // the log plugin only routes messages once the app is built.
@@ -576,39 +652,48 @@ pub fn run() {
                 tauri::async_runtime::spawn(hanzo_shell::zap::serve(handle, workspace));
             }
 
-            // ── Create the main window ────────────────────────────────────
-            // We build it here (not in tauri.conf.json) so release can point
-            // it at the in-process localhost server while dev keeps the normal
-            // devUrl flow. Settings mirror the previous tauri.conf window.
+            // ── Auto-discover & connect Hanzo MCP (HIP-0300) + saved MCP servers ──
+            {
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    if let Err(e) = commands::mcp::auto_connect_startup_servers(&handle).await {
+                        log::warn!("[hanzo] startup MCP auto-connect warning: {e}");
+                    }
+                });
+            }
+
+            // ── Create the main window (with CLI quick-file / folder target) ────
             {
                 use tauri::{WebviewUrl, WebviewWindowBuilder};
+                let launch_target = cli_target::detect_process_cli_target();
+                let url_suffix = launch_target.to_url_suffix();
                 #[cfg(not(debug_assertions))]
                 let url = WebviewUrl::External(
-                    format!("http://localhost:{localhost_port}")
+                    format!("http://localhost:{localhost_port}/{url_suffix}")
                         .parse()
                         .expect("valid localhost url"),
                 );
                 #[cfg(debug_assertions)]
-                let url = WebviewUrl::default();
+                let url = if url_suffix.is_empty() {
+                    WebviewUrl::default()
+                } else {
+                    WebviewUrl::App(format!("index.html{url_suffix}").into())
+                };
 
-                let win = WebviewWindowBuilder::new(app, "main", url)
-                    .title("Hanzo IDE")
-                    .inner_size(1440.0, 900.0)
-                    .min_inner_size(900.0, 600.0)
-                    .resizable(true)
-                    .center();
+                let win = apply_platform_window_builder(
+                    WebviewWindowBuilder::new(app, "main", url)
+                        .title("Hanzo IDE")
+                        .inner_size(1440.0, 900.0)
+                        .min_inner_size(900.0, 600.0)
+                        .resizable(true)
+                        .center(),
+                );
 
-                // The workbench draws its own title row, so the window frame
-                // only needs to supply the traffic lights. Overlay floats them
-                // on top of the web content and drops the native bar.
-                #[cfg(target_os = "macos")]
-                let win = win
-                    .title_bar_style(tauri::TitleBarStyle::Overlay)
-                    .hidden_title(true);
-                #[cfg(not(target_os = "macos"))]
-                let win = win.decorations(false);
-
-                win.build()?;
+                let window = win.build()?;
+                #[cfg(target_os = "windows")]
+                apply_windows_dwm_chrome(&window);
+                #[cfg(not(target_os = "windows"))]
+                let _ = &window;
             }
 
             // Set Hanzo identity on the default agent
@@ -713,6 +798,9 @@ pub fn run() {
             open_chat_window,
             close_chat_window,
             get_target_platform,
+            cli_target::get_cli_launch_target,
+            wsl::get_wsl_status,
+            wsl::set_wsl_mode,
             dock_icon::get_dock_icon_mode,
             dock_icon::set_dock_icon_mode,
             hanzo_shell::ide_mcp::ide_read_file,
@@ -720,6 +808,8 @@ pub fn run() {
             hanzo_shell::ide_mcp::ide_read_file_bytes,
             hanzo_shell::ide_mcp::ide_write_file_bytes,
             hanzo_shell::ide_mcp::ide_stat,
+            hanzo_shell::ide_mcp::ide_mkdir,
+            hanzo_shell::ide_mcp::ide_rename_file,
             hanzo_shell::ide_mcp::open_external,
             hanzo_shell::ide_mcp::ide_delete_file,
             hanzo_shell::ide_mcp::ide_list_dir,
@@ -774,9 +864,16 @@ pub fn run() {
             commands::memory::engine_embedding_status,
             commands::memory::engine_embedding_pull_model,
             // ── Hanzo AI: MCP ───────────────────────────────────────────
+            commands::mcp::engine_mcp_list_servers,
             commands::mcp::engine_mcp_save_server,
+            commands::mcp::engine_mcp_remove_server,
             commands::mcp::engine_mcp_connect,
             commands::mcp::engine_mcp_disconnect,
+            commands::mcp::engine_mcp_status,
+            commands::mcp::engine_mcp_refresh_tools,
+            commands::mcp::engine_mcp_connect_all,
+            commands::mcp::engine_mcp_list_tools,
+            commands::mcp::engine_mcp_detect_binary,
             commands::mcp::engine_mcp_execute_tool,
         ]);
 
@@ -797,4 +894,22 @@ pub fn run() {
     builder
         .run(tauri::generate_context!())
         .expect("error while running Hanzo");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn target_platform_matches_openvsx_format() {
+        let p = get_target_platform();
+        assert!(p.contains('-'), "expected os-arch pair, got {p}");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn linux_webkit_dmabuf_env_is_configured() {
+        configure_linux_webkit_env();
+        assert!(std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_some());
+    }
 }

@@ -4,6 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hanzo IDE</title>
+    <script>
+      (function () {
+        var ua = (navigator.platform || '') + ' ' + (navigator.userAgent || '');
+        document.documentElement.dataset.hanzoPlatform = /Mac|Darwin/i.test(ua)
+          ? 'macos'
+          : /Win/i.test(ua)
+            ? 'windows'
+            : 'linux';
+      })();
+    </script>
     <style>
       * {
         box-sizing: border-box;
@@ -18,12 +28,43 @@
         background: #090909;
       }
 
-      /* Outer shell — full viewport, vertical flex */
-      #workbench-shell {
+      html[data-hanzo-platform='linux']:not([data-maximized='true']),
+      html[data-hanzo-platform='linux']:not([data-maximized='true']) body {
+        background: transparent !important;
+        background-color: transparent !important;
+      }
+
+      #hanzo-ide-shell {
         display: flex;
         flex-direction: column;
         height: 100vh;
         width: 100vw;
+        overflow: hidden;
+        position: relative;
+        background: #000000;
+      }
+
+      html[data-hanzo-platform='linux']:not([data-maximized='true']) #hanzo-ide-shell,
+      html[data-hanzo-platform='linux']:not([data-maximized='true']) #workbench-loading {
+        border-radius: 12px;
+        overflow: hidden;
+      }
+
+      @media (max-width: 640px) {
+        html[data-hanzo-platform='linux']:not([data-maximized='true']) #hanzo-ide-shell,
+        html[data-hanzo-platform='linux']:not([data-maximized='true']) #workbench-loading {
+          border-radius: 24px;
+          overflow: hidden;
+        }
+      }
+
+      /* Outer shell — flex child under #hanzo-zen-toolbar */
+      #workbench-shell {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
+        width: 100%;
         overflow: hidden;
       }
 
@@ -72,14 +113,14 @@
 
       /* Panel — terminal/problems/output at bottom of center column */
       #workbench-panel {
-        height: 250px;
+        height: 210px;
         flex-shrink: 0;
         overflow: hidden;
       }
 
       /* Status bar — full-width bar at the very bottom */
       #workbench-statusbar {
-        height: 22px;
+        height: 23px;
         flex-shrink: 0;
         overflow: hidden;
       }
@@ -112,9 +153,9 @@
       }
 
       .loading-logo {
-        width: 280px;
-        height: 70px;
-        background: url('/wordmark.svg') center/contain no-repeat;
+        width: 64px;
+        height: 64px;
+        background: url('/favicon.svg') center/contain no-repeat;
       }
 
       .loading-spinner {
@@ -141,8 +182,10 @@
       </div>
     </div>
 
-    <!-- VS Code workbench shell — getWorkbenchServiceOverride manages layout internally -->
-    <div id="workbench-shell"></div>
+    <!-- Outer rounded desktop shell hosting #hanzo-zen-toolbar + #workbench-shell -->
+    <div id="hanzo-ide-shell">
+      <div id="workbench-shell"></div>
+    </div>
 
     <script type="module" src="/src/main.ts"></script>
 

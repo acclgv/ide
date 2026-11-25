@@ -6,11 +6,15 @@ use std::sync::Mutex;
 use tauri::{Emitter, Manager};
 
 pub const CONFIG_FILE_NAME: &str = "dock-icon-mode.json";
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub const MENU_ID_BRANDED: &str = "app.dockIcon.branded";
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub const MENU_ID_MINIMAL: &str = "app.dockIcon.minimal";
 pub const EVENT_MODE_CHANGED: &str = "dock-icon-mode-changed";
 
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 const ICON_BRANDED_PNG: &[u8] = include_bytes!("../icons/icon-macos.png");
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 const ICON_MINIMAL_PNG: &[u8] = include_bytes!("../icons/icon-macos-minimal.png");
 
 /// macOS Dock icon presentation mode.
@@ -33,6 +37,7 @@ impl DockIconMode {
         }
     }
 
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     pub const fn icon_bytes(self) -> &'static [u8] {
         match self {
             Self::Branded => ICON_BRANDED_PNG,
@@ -85,6 +90,7 @@ impl DockIconMenuState {
         }
     }
 
+    #[cfg_attr(not(target_os = "macos"), allow(dead_code))]
     pub fn set_items(
         &self,
         branded: tauri::menu::CheckMenuItem<tauri::Wry>,
@@ -220,6 +226,7 @@ pub fn apply_and_persist_mode(
     Ok(mode)
 }
 
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn build_dock_icon_submenu(
     handle: &tauri::AppHandle,
 ) -> tauri::Result<tauri::menu::Submenu<tauri::Wry>> {
@@ -252,6 +259,7 @@ pub fn build_dock_icon_submenu(
 
 /// Handle a native menu click if it belongs to the Dock Icon submenu.
 /// Returns `true` when handled.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 pub fn handle_menu_event(app: &tauri::AppHandle, id: &str) -> bool {
     let mode = match id {
         MENU_ID_BRANDED => DockIconMode::Branded,

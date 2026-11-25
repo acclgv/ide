@@ -9,8 +9,18 @@
 import { open } from '@tauri-apps/plugin-dialog'
 import { invoke } from '@tauri-apps/api/core'
 import { URI } from '@codingame/monaco-vscode-api/vscode/vs/base/common/uri'
+import { setWorkspacePath } from './ide-context.ts'
+import {
+  HANZO_MCP_CATALOG_PRESETS,
+  buildMcpServerConfigFromPreset,
+  isHanzoMcpAutoConnectEnabled,
+  parseQuickFileTargetFromLocation,
+  persistWorkspaceExplorerOpen,
+  pickPreferredEntryFile,
+} from './mcp-catalog.ts'
 import { initScmProvider } from './scm-provider.ts'
 import { registerSearchProviders } from './search-provider.ts'
+import { tauri } from './tauri.ts'
 
 /**
  * B197: tell the engine which folder is now active so its host_api.rs and
@@ -18,10 +28,28 @@ import { registerSearchProviders } from './search-provider.ts'
  * — failure to update the engine shouldn't block opening the folder.
  */
 async function notifyEngineWorkspace(path: string | null): Promise<void> {
+  setWorkspacePath(path)
+  if (!tauri()) return
   try {
     await invoke('engine_set_active_workspace', { path })
   } catch (e) {
     console.warn('[hanzo-workspace] engine_set_active_workspace failed:', e)
+  }
+  // Keep Hanzo MCP (HIP-0300) connected & scoped to the active workspace out of the box
+  if (path && isHanzoMcpAutoConnectEnabled()) {
+    try {
+      const bin = await invoke<string | null>('engine_mcp_detect_binary').catch(() => null)
+      if (bin) {
+        const cfg = buildMcpServerConfigFromPreset(HANZO_MCP_CATALOG_PRESETS[0], {
+          resolvedBinary: bin,
+          workspacePath: path,
+        })
+        await invoke('engine_mcp_save_server', { server: cfg })
+        await invoke('engine_mcp_connect', { id: 'hanzo' })
+      }
+    } catch {
+      /* non-fatal */
+    }
   }
 }
 
@@ -136,7 +164,11 @@ export function createWorkspaceProvider() {
         const uri = (workspace as { folderUri: URI }).folderUri
         if (uri && uri.path) {
           const currentPath = getWorkspacePath()
-          if (uri.path === currentPath) return true
+          persistWorkspaceExplorerOpen(uri.path)
+          if (uri.path === currentPath) {
+            void import('./zen-workspace.ts').then((m) => m.ensureExplorerOpenForWorkspace())
+            return true
+          }
 
           // Try addFolders first to avoid reload
           try {
@@ -147,6 +179,9 @@ export function createWorkspaceProvider() {
             if (editingService?.addFolders) {
               await editingService.addFolders([{ uri: URI.file(uri.path) }])
               window.location.hash = encodeURIComponent(uri.path)
+              setWorkspacePath(uri.path)
+              void import('./zen-workspace.ts').then((m) => m.ensureExplorerOpenForWorkspace())
+              void autoOpenWorkspaceEntryFileIfEmpty(uri.path)
               // Trigger backend indexing (guarded)
               await emitOpenWorkspaceOnce(uri.path)
               return true
@@ -209,16 +244,13 @@ async function _pickAndOpenFolderInner(): Promise<boolean> {
     tlog(`[step 3] dialog returned: ${selected}`)
 
     if (!selected || typeof selected !== 'string') return false
+    persistWorkspaceExplorerOpen(selected)
 
-    // Fast path: user picked the folder we're already in. The full
-    // open-folder flow ends in window.location.reload() (because
-    // monaco-vscode-api hardcodes enterWorkspace = unsupported), and
-    // reloading on a "no-op" folder pick is the most jarring slowdown
-    // — extension host respawns, every webview re-mounts, etc.
-    // Detect the no-op and just return true without doing anything.
+    // Fast path: user picked the folder we're already in. Still reveal Explorer!
     const currentPath = getWorkspacePath()
     if (currentPath && pathEquals(currentPath, selected)) {
-      tlog(`[step 3-noop] already in this workspace (${selected}) — skipping reload`)
+      tlog(`[step 3-noop] already in this workspace (${selected}) — revealing Explorer`)
+      void import('./zen-workspace.ts').then((m) => m.ensureExplorerOpenForWorkspace())
       return true
     }
 
@@ -259,6 +291,9 @@ async function _pickAndOpenFolderInner(): Promise<boolean> {
         await editingService.addFolders([{ uri: URI.file(selected) }])
         tlog('[step 10] addFolders done')
         window.location.hash = encodeURIComponent(selected)
+        setWorkspacePath(selected)
+        void import('./zen-workspace.ts').then((m) => m.ensureExplorerOpenForWorkspace())
+        void autoOpenWorkspaceEntryFileIfEmpty(selected)
         tlog(`[step 11] Workspace replaced with: ${selected}`)
 
         // Initialize workspace services (guarded — only runs once per path)
@@ -297,6 +332,7 @@ export async function listenForWorkspaceOpen(): Promise<void> {
   await listen<{ path: string }>('open-workspace', async (event) => {
     const path = event.payload.path
     if (!path) return
+    persistWorkspaceExplorerOpen(path)
 
     // If this workspace is already open, do nothing — this event was likely
     // emitted by emitOpenWorkspaceOnce() to trigger backend indexing, not to
@@ -461,6 +497,9 @@ export async function initWorkspaceServices(): Promise<void> {
   }
 
   console.log('[hanzo-workspace] initializing services for', workspace)
+  setWorkspacePath(workspace)
+  void notifyEngineWorkspace(workspace)
+  void autoOpenWorkspaceEntryFileIfEmpty(workspace)
 
   // Mark this path as emitted so if watchWorkspaceFolders fires later,
   // it won't emit a duplicate open-workspace event.
@@ -493,4 +532,204 @@ export async function initWorkspaceServices(): Promise<void> {
   ensureServicesForPath(workspace).catch((e) => {
     console.warn('[hanzo-workspace] background service init failed:', e)
   })
+}
+
+async function openUriViaVsCodeOpen(
+  uri: URI,
+  options?: Record<string, unknown>,
+): Promise<boolean> {
+  try {
+    const { StandaloneServices } = await import('@codingame/monaco-vscode-api/services')
+    const { IWorkbenchLayoutService } = await import(
+      '@codingame/monaco-vscode-api/vscode/vs/workbench/services/layout/browser/layoutService.service'
+    )
+    const { IEditorService } = await import(
+      '@codingame/monaco-vscode-api/vscode/vs/workbench/services/editor/common/editorService.service'
+    )
+    const layoutSvc = StandaloneServices.get(IWorkbenchLayoutService) as any
+    if (layoutSvc?.whenRestored) {
+      await Promise.race([
+        layoutSvc.whenRestored,
+        new Promise((r) => setTimeout(r, 1500)),
+      ])
+    }
+    const editorSvc = StandaloneServices.get(IEditorService) as any
+    if (editorSvc?.openEditor) {
+      await editorSvc.openEditor({ resource: uri, options })
+      return true
+    }
+    const { CommandsRegistry, ICommandService } = await import(
+      '@codingame/monaco-vscode-api/vscode/vs/platform/commands/common/commands'
+    )
+    const cmdSvc = StandaloneServices.get(ICommandService) as any
+    if (cmdSvc?.executeCommand) {
+      await cmdSvc.executeCommand('vscode.open', uri, options)
+      return true
+    }
+    const cmd = CommandsRegistry.getCommand('vscode.open')
+    if (cmd?.handler) {
+      await cmd.handler(null as any, uri, options)
+      return true
+    }
+  } catch (e) {
+    console.warn('[hanzo-workspace] openEditor failed:', e)
+  }
+  return false
+}
+
+/**
+ * Show the native Tauri file picker and open the selected file in Monaco editor.
+ */
+export async function pickAndOpenFile(): Promise<boolean> {
+  try {
+    const selected = await open({
+      directory: false,
+      multiple: false,
+      title: 'Open File',
+    })
+    if (!selected || typeof selected !== 'string') return false
+    return await openUriViaVsCodeOpen(URI.file(selected), { pinned: true })
+  } catch (e) {
+    console.warn('[hanzo-workspace] pickAndOpenFile failed:', e)
+  }
+  return false
+}
+
+/**
+ * Open a specific workspace folder path directly without native picker.
+ */
+export function openWorkspaceFolderPath(folderPath: string): void {
+  if (!folderPath) return
+  persistWorkspaceExplorerOpen(folderPath)
+  const current = getWorkspacePath()
+  if (current && pathEquals(current, folderPath)) {
+    void import('./zen-workspace.ts').then((m) => m.ensureExplorerOpenForWorkspace())
+    return
+  }
+  window.location.hash = encodeURIComponent(folderPath)
+  window.location.reload()
+}
+
+/**
+ * When a workspace folder is open and 0 editor tabs are open yet, automatically
+ * open a primary entry file (`README.md`, `package.json`, `Cargo.toml`, `src/main.ts`, etc.)
+ * so the user immediately sees both the file tree AND a live editable file.
+ */
+export async function autoOpenWorkspaceEntryFileIfEmpty(workspacePath: string): Promise<void> {
+  if (!tauri() || !workspacePath) return
+  const fromUrl = parseQuickFileTargetFromLocation(window.location.search, window.location.hash)
+  if (fromUrl.quickFile) return
+  try {
+    const { getService, IEditorService } = await import('@codingame/monaco-vscode-api/services')
+    const editorService = (await getService(IEditorService)) as any
+    if (Array.isArray(editorService?.editors) && editorService.editors.length > 0) return
+
+    const listing = await invoke<{
+      path: string
+      entries: Array<{ name: string; is_dir: boolean; size: number }>
+    }>('ide_list_dir', {
+      path: workspacePath,
+      includeHidden: false,
+    })
+    const entries = listing?.entries ?? []
+    let chosenPath: string | null = null
+    const rootPick = pickPreferredEntryFile(entries)
+    if (rootPick) {
+      chosenPath = `${workspacePath.replace(/[\\/]+$/, '')}/${rootPick}`
+    } else if (entries.some((e) => e.is_dir && e.name === 'src')) {
+      const srcDir = `${workspacePath.replace(/[\\/]+$/, '')}/src`
+      const srcListing = await invoke<{
+        entries: Array<{ name: string; is_dir: boolean }>
+      }>('ide_list_dir', { path: srcDir, includeHidden: false }).catch(() => null)
+      const srcPick = pickPreferredEntryFile(srcListing?.entries ?? [])
+      if (srcPick) chosenPath = `${srcDir}/${srcPick}`
+    }
+
+    if (chosenPath && (!editorService?.editors || editorService.editors.length === 0)) {
+      await openUriViaVsCodeOpen(URI.file(chosenPath), {
+        pinned: false,
+        preserveFocus: true,
+      })
+    }
+  } catch (e) {
+    console.warn('[hanzo-workspace] autoOpenWorkspaceEntryFileIfEmpty skipped:', e)
+  }
+}
+
+/**
+ * Zed-speed CLI quick-file opener (`hanzo-ide /path/to/file.rs[:line[:col]]`).
+ * Opens the target file directly in Monaco (<500ms) without opening sidebars.
+ */
+export async function openQuickLaunchFileIfPresent(): Promise<boolean> {
+  const filesToOpen: Array<{ path: string; line: number | null; column: number | null }> = []
+
+  const fromUrl = parseQuickFileTargetFromLocation(window.location.search, window.location.hash)
+  if (fromUrl.quickFile) {
+    filesToOpen.push({ path: fromUrl.quickFile, line: fromUrl.line, column: fromUrl.column })
+  }
+  if (tauri()) {
+    try {
+      const cli = await invoke<{
+        kind: string
+        path?: string | null
+        extra_files?: string[]
+        line?: number | null
+        column?: number | null
+      }>('get_cli_launch_target')
+      if (cli?.kind === 'file' && cli.path && filesToOpen.length === 0) {
+        filesToOpen.push({
+          path: cli.path,
+          line: cli.line ?? null,
+          column: cli.column ?? null,
+        })
+      }
+      for (const extra of cli?.extra_files ?? []) {
+        if (extra && !filesToOpen.some((f) => f.path === extra)) {
+          filesToOpen.push({ path: extra, line: null, column: null })
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (filesToOpen.length === 0) return false
+
+  try {
+    // Open secondary tabs in background first, then focus primary file
+    for (let i = filesToOpen.length - 1; i >= 0; i--) {
+      const entry = filesToOpen[i]
+      const options: Record<string, unknown> = {
+        pinned: true,
+        preserveFocus: i > 0,
+      }
+      if (entry.line && entry.line > 0) {
+        const col = entry.column && entry.column > 0 ? entry.column : 1
+        options.selection = {
+          startLineNumber: entry.line,
+          startColumn: col,
+          endLineNumber: entry.line,
+          endColumn: col,
+        }
+      }
+
+      let existsOnDisk = true
+      if (tauri()) {
+        try {
+          await invoke('ide_stat', { path: entry.path })
+        } catch {
+          existsOnDisk = false
+        }
+      }
+
+      const targetUri = existsOnDisk
+        ? URI.file(entry.path)
+        : URI.file(entry.path).with({ scheme: 'untitled' })
+      await openUriViaVsCodeOpen(targetUri, options)
+    }
+    return true
+  } catch (e) {
+    console.warn('[hanzo-workspace] quick-file open fallback:', e)
+    return false
+  }
 }

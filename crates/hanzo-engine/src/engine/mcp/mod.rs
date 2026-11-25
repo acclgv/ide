@@ -16,5 +16,5 @@ pub mod transport;
 pub mod types;
 
 // Re-export the main public types
-pub use registry::McpRegistry;
-pub use types::{McpServerConfig, McpServerStatus, McpTransport};
+pub use registry::{resolve_hanzo_mcp_binary, McpRegistry};
+pub use types::{McpServerConfig, McpServerStatus, McpServerToolInfo, McpTransport};

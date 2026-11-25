@@ -212,7 +212,7 @@ async fn start_ollama_process() -> EngineResult<()> {
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
-            .creation_flags(0x00000008) // DETACHED_PROCESS
+            .creation_flags(0x0800_0000 | 0x0000_0008) // CREATE_NO_WINDOW | DETACHED_PROCESS
             .spawn()?;
     }
 
@@ -260,10 +260,11 @@ fn which_ollama() -> Option<String> {
     };
 
     for candidate in &candidates {
-        if let Ok(output) = std::process::Command::new(candidate)
-            .arg("--version")
-            .output()
-        {
+        let mut c = std::process::Command::new(candidate);
+        c.arg("--version");
+        #[cfg(target_os = "windows")]
+        c.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        if let Ok(output) = c.output() {
             if output.status.success() {
                 return Some(candidate.clone());
             }
@@ -275,7 +276,11 @@ fn which_ollama() -> Option<String> {
     } else {
         "which"
     };
-    if let Ok(output) = std::process::Command::new(which_cmd).arg("ollama").output() {
+    let mut wc = std::process::Command::new(which_cmd);
+    wc.arg("ollama");
+    #[cfg(target_os = "windows")]
+    wc.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    if let Ok(output) = wc.output() {
         if output.status.success() {
             let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
             if !path.is_empty() {

@@ -3,13 +3,18 @@
 
 import { registerCustomView, ViewContainerLocation } from '@codingame/monaco-vscode-workbench-service-override'
 import { invoke } from '@tauri-apps/api/core'
-import { emit } from '../tauri.ts'
+import { zenIcon } from '../brand.ts'
+import { emit, tauri } from '../tauri.ts'
 import { S } from './state.ts'
 import { build } from './index.ts'
 import { ensureListening } from './streaming.ts'
 import { renderMessagesFull } from './render.ts'
 
+let _chatViewRegistered = false
+
 export function registerHanzoChat(): void {
+  if (_chatViewRegistered) return
+  _chatViewRegistered = true
   ensureListening().catch(console.error)
 
   registerCustomView({
@@ -21,21 +26,25 @@ export function registerHanzoChat(): void {
     default: true,
     renderBody(container) {
       const chat = build(container)
-      chat.actions.appendChild(detach())
+      if (tauri()) {
+        const popBtn = detach()
+        chat.actions.insertBefore(popBtn, chat.actions.lastElementChild)
+      }
       return chat
     },
   })
 }
 
 /** Pop the chat into its own window. */
-function detach(): HTMLButtonElement {
+export function detach(): HTMLButtonElement {
   // Snapshot the state for the new window to hydrate, ask the shell for
   // the window, and park this panel behind a placeholder until Reattach.
   const detachBtn = document.createElement('button')
   detachBtn.type = 'button'
-  detachBtn.title = 'Pop chat into its own window'
+  detachBtn.className = 'hanzo-chat-icon-button'
+  detachBtn.title = 'Pop out chat window'
   detachBtn.setAttribute('aria-label', 'Open chat in a separate window')
-  detachBtn.innerHTML = '<span class="codicon codicon-multiple-windows" style="font-size:13px"></span>'
+  detachBtn.innerHTML = zenIcon('popout', 13)
   detachBtn.addEventListener('click', async () => {
     try {
       const snapshot = {

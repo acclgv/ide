@@ -138,24 +138,47 @@ class TauriTerminalProcess extends SimpleTerminalProcess {
 
 let processCounter = 0
 
+export const WINDOWS_SHELL_PREF_KEY = 'hanzo.ide.windowsShell'
+
 export class HanzoTerminalBackend extends SimpleTerminalBackend {
   override getDefaultSystemShell = async (): Promise<string> => {
-    // Return the user's default shell — Rust will resolve this too,
-    // but the frontend needs a display value
-    return navigator.platform.includes('Win') ? 'cmd.exe' : '/bin/zsh'
+    if (navigator.platform.includes('Win')) {
+      try {
+        const pref = localStorage.getItem(WINDOWS_SHELL_PREF_KEY)
+        if (pref === 'wsl.exe' || pref === 'powershell.exe') return pref
+      } catch {
+        /* ignore */
+      }
+      return 'powershell.exe'
+    }
+    return '/bin/zsh'
   }
 
   override createProcess = async (
-    _shellLaunchConfig: unknown,
+    shellLaunchConfig: unknown,
     _cwd: string,
     cols: number,
     rows: number,
   ): Promise<ITerminalChildProcess> => {
     const cwd = typeof _cwd === 'string' ? _cwd : undefined
+    const explicitExec =
+      shellLaunchConfig && typeof shellLaunchConfig === 'object' && 'executable' in shellLaunchConfig
+        ? String((shellLaunchConfig as { executable?: string }).executable || '')
+        : ''
+    let shell: string | undefined = explicitExec || undefined
+    if (!shell && navigator.platform.includes('Win')) {
+      try {
+        const pref = localStorage.getItem(WINDOWS_SHELL_PREF_KEY)
+        if (pref === 'wsl.exe' || pref === 'powershell.exe') shell = pref
+      } catch {
+        /* ignore */
+      }
+    }
 
     // Spawn PTY via Rust
     const result = await invoke<TerminalSpawnResult>('terminal_spawn', {
       request: {
+        shell,
         cwd,
         cols,
         rows,

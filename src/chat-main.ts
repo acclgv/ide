@@ -16,6 +16,7 @@
  * the chat module's existing `engine-event` listener picks up streaming
  * deltas, tool requests, etc. without any extra plumbing.
  */
+import '@hanzo/font/css'
 import '@codingame/monaco-vscode-api/vscode/vs/base/browser/ui/codicons/codicon/codicon.css'
 import '@codingame/monaco-vscode-api/vscode/vs/base/browser/ui/codicons/codicon/codicon-modifiers.css'
 import './styles/tokens.css'
@@ -23,7 +24,7 @@ import './styles/tokens.css'
 import { invoke } from '@tauri-apps/api/core'
 import { emit, listen, tauri } from './hanzo/tauri.ts'
 import { finish } from './hanzo/iam.ts'
-import { registerAccount } from './hanzo/account.ts'
+import { mountDetachedChatChrome, registerAccount } from './hanzo/account.ts'
 
 import { S } from './hanzo/chat/state.ts'
 import type { ChatMsg } from './hanzo/chat/types.ts'
@@ -170,10 +171,19 @@ async function bootstrap(): Promise<void> {
     console.warn('[hanzo-chat-detached] trigger-reattach listener failed:', e)
   }
 
-  // 4. Build the chat; Reattach is this window's control.
-  const chat = build(root)
-  if (tauri()) chat.actions.appendChild(reattach())
-  else await registerAccount(chat.actions)
+  // 4. Build the chat; Reattach + frameless window controls live in `chat.actions`.
+  const chat = build(root, { detached: true })
+  if (tauri()) {
+    const reattachBtn = reattach()
+    reattachBtn.className = 'hanzo-chat-icon-button'
+    chat.actions.appendChild(reattachBtn)
+    const topBar = root.querySelector<HTMLElement>('.hanzo-chat-topbar')
+    mountDetachedChatChrome(topBar, chat.actions, () => {
+      void performReattach()
+    })
+  } else {
+    await registerAccount(chat.actions)
+  }
   if (S.streaming) showStreamingBubble()
 
   // Closing through the OS control still hands the chat back: write the

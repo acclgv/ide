@@ -1,236 +1,299 @@
-/* ── Unified Hanzo Shell Chrome & IAM Account/Org (`X-Org-Id`) Pill ─────────
- * Shared titlebar chrome across Hanzo Dev, Hanzo Team, and Hanzo IDE.
+/* ── Hanzo IDE — Zen 40px Fixed Top Bar & Menus (`account.css`) ───────────────
+ * Mounted directly on `document.body` (`#hanzo-zen-toolbar`) matching
+ * `uploaded_media_0_1795583923431.png` + `Hanzo Dev`:
+ *   Left:   [F-menu] [PanelLeft] [<] [>] (plus folder pill when open)
+ *   Middle: Pure `#000000` empty drag region
+ *   Right:  [🔍 Search] [🗔 Browser] [>_ Terminal] [⊞ Integrations] [PanelRight] | [— □ ×]
  * ────────────────────────────────────────────────────────────────────────── */
 
-.hanzo-shell-left {
+#hanzo-zen-toolbar {
   position: relative;
-  z-index: 2;
-  -webkit-app-region: no-drag;
-  display: inline-flex;
+  z-index: 50;
+  width: 100%;
+  height: var(--hanzo-titlebar-height, 40px);
+  flex: 0 0 var(--hanzo-titlebar-height, 40px);
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding-right: 8px;
-  min-width: 0;
-}
-
-.hanzo-workspace-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 26px;
-  padding: 0 9px;
-  border-radius: var(--hanzo-radius-md, 8px);
-  border: 1px solid transparent;
-  background: transparent;
-  color: var(--hanzo-text, #fafafa);
-  font-family: var(--hanzo-font-ui);
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  cursor: pointer;
-  max-width: 220px;
-  transition: background var(--hanzo-transition-fast), border-color var(--hanzo-transition-fast);
-}
-
-.hanzo-workspace-pill:hover {
-  background: var(--hanzo-surface-hover);
-  border-color: var(--hanzo-border);
-}
-
-.hanzo-workspace-mark {
-  width: 14px;
-  height: 14px;
-  flex-shrink: 0;
-}
-
-[data-hanzo-theme='light'] .hanzo-workspace-mark {
-  filter: invert(1);
-}
-
-.hanzo-workspace-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.hanzo-workspace-chevron {
-  font-size: 11px !important;
-  color: var(--hanzo-text-muted);
-}
-
-.hanzo-shell-right {
-  position: relative;
-  z-index: 2;
-  -webkit-app-region: no-drag;
-  margin-left: auto;
-  padding-right: 10px;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-width: 0;
-}
-
-.hanzo-chrome-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--hanzo-radius-md, 8px);
-  background: transparent;
-  color: var(--hanzo-text-secondary, #a1a1aa);
-  cursor: pointer;
-  transition: color var(--hanzo-transition-fast), background var(--hanzo-transition-fast);
-}
-
-.hanzo-chrome-btn .codicon {
-  font-size: 14px !important;
-}
-
-.hanzo-chrome-btn:hover {
-  background: var(--hanzo-surface-hover);
-  color: var(--hanzo-text, #fafafa);
-}
-
-.hanzo-chrome-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 26px;
-  padding: 0 8px;
-  border: 1px solid var(--hanzo-border, #222226);
-  border-radius: var(--hanzo-radius-md, 8px);
-  background: var(--hanzo-surface-card, #141417);
-  color: var(--hanzo-text-secondary, #a1a1aa);
-  font-family: var(--hanzo-font-ui);
-  font-size: 11px;
-  cursor: pointer;
-  transition: color var(--hanzo-transition-fast), border-color var(--hanzo-transition-fast), background var(--hanzo-transition-fast);
-}
-
-.hanzo-chrome-pill .codicon {
-  font-size: 12px !important;
-}
-
-.hanzo-chrome-pill:hover {
-  background: var(--hanzo-surface-hover);
-  color: var(--hanzo-text, #fafafa);
-  border-color: var(--hanzo-accent-dim);
-}
-
-.hanzo-chrome-kbd {
-  font-family: var(--hanzo-font-mono);
-  font-size: 10px;
-  color: var(--hanzo-text-muted, #71717a);
-}
-
-/* ── Unified Hanzo IAM Account & Org (`X-Org-Id`) Status Pill ─────────────── */
-
-.hanzo-account {
-  position: relative;
-  z-index: 2;
-  -webkit-app-region: no-drag;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 26px;
-  padding: 0 8px;
-  border: 1px solid var(--hanzo-border, #222226);
-  border-radius: var(--hanzo-radius-pill, 9999px);
-  background: var(--hanzo-surface-card, #141417);
-  min-width: 0;
-}
-
-.hanzo-account--compact {
-  height: 24px;
-  padding: 0 6px;
-}
-
-.hanzo-account-domain {
-  font-family: var(--hanzo-font-mono);
-  font-size: 10px;
-  color: var(--hanzo-text-muted, #71717a);
-  letter-spacing: -0.01em;
-}
-
-.hanzo-account-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--hanzo-success, #10b981);
-  flex-shrink: 0;
-}
-
-.hanzo-account-sep {
-  color: var(--hanzo-text-muted, #71717a);
-  font-size: 10px;
+  justify-content: space-between;
+  padding: 0 10px 0 12px;
+  background: var(--zen-chrome, #000000);
+  border-bottom: 1px solid var(--zen-chrome-border, #171717);
   user-select: none;
-}
-
-.hanzo-account-org,
-.hanzo-account-btn,
-.hanzo-account-switch {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 18ch;
   font-family: var(--hanzo-font-ui);
-  font-size: 11px;
-  line-height: 1;
+  -webkit-app-region: drag;
 }
 
-.hanzo-account-org,
-.hanzo-account-switch {
-  font-weight: 600;
-  color: var(--hanzo-text, #fafafa);
+[data-hanzo-platform='macos'] #hanzo-zen-toolbar {
+  padding-left: 78px;
 }
 
-.hanzo-account-switch {
-  appearance: none;
+html[data-signin-gate='true'] #hanzo-zen-toolbar,
+html[data-zen-focus='true'] #hanzo-zen-toolbar {
+  display: none !important;
+}
+
+.hanzo-zen-cluster {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+.hanzo-zen-drag-spacer {
+  flex: 1 1 auto;
+  height: 100%;
+  min-width: 24px;
+  -webkit-app-region: drag;
+}
+
+.hanzo-zen-sep {
+  height: 16px;
+  width: 1px;
+  background: #222222;
+  margin: 0 2px;
+  flex-shrink: 0;
+}
+
+[data-hanzo-theme='light'] .hanzo-zen-sep {
+  background: #e4e4e7;
+}
+
+/* ── 28×28 Toolbar Icon Buttons ───────────────────────────────────────────── */
+
+.hanzo-toolbar-ib {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
   background: transparent;
-  border: 0;
-  padding: 0 1.4ch 0 0;
+  color: var(--zen-muted, #a0a0a0);
+  display: inline-grid;
+  place-items: center;
   cursor: pointer;
-  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
-                    linear-gradient(135deg, currentColor 50%, transparent 50%);
-  background-size: 4px 4px, 4px 4px;
-  background-position: right 4px center, right 1px center;
-  background-repeat: no-repeat;
+  flex: none;
+  transition: background-color 120ms ease, color 120ms ease;
+  -webkit-app-region: no-drag;
 }
 
-.hanzo-account-switch:hover {
-  opacity: 0.85;
+.hanzo-toolbar-ib:hover {
+  background: var(--zen-hover, #1b1b1b);
+  color: var(--zen-fg, #e5e5e5);
 }
 
-.hanzo-account-btn {
-  background: transparent;
-  border: 0;
-  padding: 2px 4px;
-  border-radius: var(--hanzo-radius-xs, 4px);
-  color: var(--hanzo-text, #fafafa);
-  font-weight: 500;
-  cursor: pointer;
-  transition: color var(--hanzo-transition-fast), opacity var(--hanzo-transition-fast);
+.hanzo-toolbar-ib[aria-pressed='true'],
+.hanzo-toolbar-ib[aria-expanded='true'] {
+  background: var(--zen-hover, #1b1b1b);
+  color: var(--zen-fg, #eeeeee);
 }
 
-.hanzo-account-btn:hover:not(:disabled) {
-  opacity: 0.88;
-}
-
-.hanzo-account-btn:disabled {
-  opacity: 0.5;
+.hanzo-toolbar-ib:disabled {
+  opacity: 0.35;
   cursor: default;
 }
 
-.hanzo-account-who {
-  padding: 0;
-  font-weight: 400;
-  color: var(--hanzo-text-secondary, #a1a1aa);
+/* ── Project / Folder Button (shown when workspace folder is open) ────────── */
+
+.hanzo-zen-project {
+  border: none;
+  background: transparent;
+  border-radius: 5px;
+  font-family: var(--hanzo-font-ui);
+  font-size: 12px;
+  font-weight: 450;
+  color: #b2b2b2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 4px 7px;
+  max-width: 190px;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+  -webkit-app-region: no-drag;
 }
 
-.hanzo-account-who:hover:not(:disabled) {
-  color: var(--hanzo-text, #fafafa);
-  opacity: 1;
+.hanzo-zen-project[hidden] {
+  display: none !important;
+}
+
+.hanzo-zen-project:hover {
+  background: var(--zen-hover, #1b1b1b);
+  color: var(--zen-fg, #e5e5e5);
+}
+
+.hanzo-zen-project[data-kind='scratch'] {
+  background: #141414;
+  border: 1px solid #242424;
+  color: #cfcfcf;
+  padding: 3px 8px;
+  border-radius: 99px;
+  font-size: 11.5px;
+}
+
+[data-hanzo-theme='light'] .hanzo-zen-project {
+  color: #52525b;
+}
+
+[data-hanzo-theme='light'] .hanzo-zen-project[data-kind='scratch'] {
+  background: #f4f4f5;
+  border-color: #e4e4e7;
+  color: #27272a;
+}
+
+/* ── Window Controls (`— □ ×`) ────────────────────────────────────────────── */
+
+.hanzo-window-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  margin-left: 1px;
+  flex-shrink: 0;
+  pointer-events: auto;
+  -webkit-app-region: no-drag;
+}
+
+.hanzo-win-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--zen-muted, #a0a0a0);
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+  -webkit-app-region: no-drag;
+}
+
+.hanzo-win-btn:hover {
+  background: var(--zen-hover, #1b1b1b);
+  color: var(--zen-fg, #e5e5e5);
+}
+
+.hanzo-win-btn--close:hover {
+  background: #e5484d !important;
+  color: #ffffff !important;
+}
+
+/* ── Solid Popover Menus (`#141414` Dark / `#ffffff` Light) ───────────────── */
+
+.hanzo-desktop-menu {
+  position: fixed;
+  top: 42px;
+  left: 10px;
+  z-index: 10000;
+  min-width: 238px;
+  padding: 5px;
+  border-radius: 8px;
+  background-color: #141414 !important;
+  border: 1px solid #2b2b2b !important;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.78) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  opacity: 1 !important;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  font-family: var(--hanzo-font-ui);
+  user-select: none;
+}
+
+.hanzo-desktop-menu[hidden] {
+  display: none !important;
+}
+
+[data-hanzo-theme='light'] .hanzo-desktop-menu {
+  background-color: #ffffff !important;
+  border-color: #e4e4e7 !important;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.14) !important;
+}
+
+.hanzo-desktop-menu-item {
+  width: 100%;
+  min-height: 29px;
+  padding: 5px 9px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: #bbbbbb;
+  font-family: inherit;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 100ms ease, color 100ms ease;
+}
+
+.hanzo-desktop-menu-item:hover,
+.hanzo-desktop-menu-item:focus-visible {
+  background: var(--zen-hover, #242424);
+  color: var(--zen-fg, #eeeeee);
+  outline: none;
+}
+
+[data-hanzo-theme='light'] .hanzo-desktop-menu-item {
+  color: #3f3f46;
+}
+
+[data-hanzo-theme='light'] .hanzo-desktop-menu-item:hover {
+  background: #f4f4f5;
+  color: #18181b;
+}
+
+.hanzo-desktop-menu-kbd {
+  font: 10px/1.5 var(--hanzo-font-ui);
+  color: #929292;
+  border: 1px solid #2b2b2b;
+  border-radius: 4px;
+  background: #121212;
+  padding: 0 5px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+[data-hanzo-theme='light'] .hanzo-desktop-menu-kbd {
+  color: #71717b;
+  border-color: #d4d4d8;
+  background: #f4f4f5;
+}
+
+.hanzo-desktop-menu-sep {
+  height: 1px;
+  margin: 4px 5px;
+  background: #242424;
+}
+
+[data-hanzo-theme='light'] .hanzo-desktop-menu-sep {
+  background: #e4e4e7;
+}
+
+.hanzo-account {
+  display: none;
+}
+
+.hanzo-account--compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Curved border ring is rendered via `#hanzo-ide-shell::after` in `overrides.css` */
+#hanzo-window-frame {
+  display: none !important;
+}
+
+@media (max-width: 720px) {
+  .hanzo-zen-project {
+    display: none;
+  }
+  .hanzo-zen-cluster {
+    gap: 2px;
+  }
 }

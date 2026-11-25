@@ -1,6 +1,6 @@
 [package]
 name = "hanzo"
-version = "0.1.1"
+version = "0.2.0"
 description = "AI-native IDE built in Rust"
 authors = ["Eli Bury <eli@hanzo.ai>"]
 license = "Apache-2.0"
@@ -25,7 +25,7 @@ tokio.workspace = true
 uuid.workspace = true
 async-trait.workspace = true
 
-tauri = { version = "2.10.3", features = ["devtools"] }
+tauri = { version = "2.10.3", features = ["devtools", "tray-icon", "image-png"] }
 tauri-plugin-log = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-opener = "2"

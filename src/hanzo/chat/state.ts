@@ -1,8 +1,7 @@
 /**
  * Hanzo Chat — Shared mutable state singleton
  *
- * All 40+ module-level `let` variables from hanzo-chat.ts are collected here
- * so that every split file can read/write the same state via `import { S }`.
+ * Shared state across all `src/hanzo/chat/*` modules via `import { S }`.
  */
 
 import type { UnlistenFn } from '@tauri-apps/api/event'
@@ -17,7 +16,6 @@ import type {
 } from './types.ts'
 
 interface ChatState {
-  // ── Session / streaming ─────────────────────────────────────────────
   sessionId: string | null
   runId: string | null
   streaming: boolean
@@ -25,7 +23,6 @@ interface ChatState {
   streamAccum: string
   unlisten: UnlistenFn | null
 
-  // ── Selections ──────────────────────────────────────────────────────
   selectedAgent: Agent | null
   selectedModel: string | null
   agents: Agent[]
@@ -33,17 +30,14 @@ interface ChatState {
   thinkingLevel: string
   approvalMode: ApprovalMode
 
-  // ── Plan mode ───────────────────────────────────────────────────────
   planMode: boolean
   lastSendWasPlan: boolean
   planSteps: string[]
   planStepIndex: number
   planProgressEl: HTMLElement | null
 
-  // ── Pending tool calls ──────────────────────────────────────────────
   pendingToolCalls: Map<string, PendingTool>
 
-  // ── DOM refs ────────────────────────────────────────────────────────
   msgList: HTMLElement | null
   streamingBubble: HTMLElement | null
   textarea: HTMLTextAreaElement | null
@@ -58,50 +52,40 @@ interface ChatState {
   attachmentBar: HTMLElement | null
   contextBar: HTMLElement | null
 
-  // ── Attachments / checkpoint ────────────────────────────────────────
+  onSessionsUpdated: (() => void) | null
+  onModelsUpdated: (() => void) | null
+  onModeUpdated: (() => void) | null
+
   attachments: Attachment[]
   checkpoint: AgentCheckpoint | null
 
-  // ── Provider setup ──────────────────────────────────────────────────
   needsProviderSetup: boolean
 
-  // ── Whisper (mid-run inject) ─────────────────────────────────────────
   whisperRow: HTMLElement | null
   whisperInput: HTMLInputElement | null
 
-  // ── Run tracking ────────────────────────────────────────────────────
   completedRounds: number
-  // Run IDs that have fully completed — events carrying these are stale and must be dropped
   completedRunIds: Set<string>
 
-  // ── Surface (pause + discuss) ────────────────────────────────────────
   surfaced: boolean
   surfacedRound: number
   surfacedSummary: string
   surfaceBtn: HTMLButtonElement | null
   resumeBtn: HTMLButtonElement | null
 
-  // ── Streaming frame scheduling ──────────────────────────────────────
   streamingRafId: number | null
   pendingStreamText: string
 
-  // ── Thinking elapsed timer ───────────────────────────────────────────
   thinkingStartTs: number | null
   thinkingTimerInterval: ReturnType<typeof setInterval> | null
 
-  // ── Sandbox progress log ────────────────────────────────────────────
   progressLog: HTMLDivElement | null
   progressUnlisten: (() => void) | null
 
-  // ── Misc unlistens (panel-scoped) ────────────────────────────────────
   providerUpdatedUnlisten: (() => void) | null
-  /** Phase 3: re-hydrate the chat panel when the user reattaches the
-   * detached chat window. Set during renderBody and torn down on
-   * dispose. */
   chatReattachUnlisten: (() => void) | null
 }
 
-/** The single shared state object. Import as `S` everywhere. */
 export const S: ChatState = {
   sessionId: null,
   runId: null,
@@ -114,7 +98,7 @@ export const S: ChatState = {
   selectedModel: null,
   agents: [],
   sessions: [],
-  thinkingLevel: 'none',
+  thinkingLevel: 'medium',
   approvalMode: 'auto',
 
   planMode: false,
@@ -139,10 +123,14 @@ export const S: ChatState = {
   attachmentBar: null,
   contextBar: null,
 
+  onSessionsUpdated: null,
+  onModelsUpdated: null,
+  onModeUpdated: null,
+
   attachments: [],
   checkpoint: null,
 
-  needsProviderSetup: true,
+  needsProviderSetup: false,
 
   whisperRow: null,
   whisperInput: null,

@@ -216,29 +216,32 @@ async fn execute_exec(
     // Child by value; dropping that future must terminate the process.
     // Without this the child outlives its own timeout — a `sleep 9999` or a
     // runaway build keeps consuming CPU/memory detached in the background.
-    let child = if cfg!(target_os = "windows") {
-        // `/C` (with the slash) tells cmd.exe to run the command and exit.
-        // Passing bare `C` makes cmd treat it as a literal arg and the command
-        // never runs — exec was inert on Windows.
-        TokioCommand::new("cmd")
-            .args(["/C", command])
+    #[cfg(target_os = "windows")]
+    let child = {
+        let mut c = TokioCommand::new("cmd");
+        c.args(["/C", command])
             .current_dir(&workspace)
             .kill_on_drop(true)
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
-            .spawn()
-    } else {
-        TokioCommand::new("sh")
-            .args(["-c", command])
-            .current_dir(&workspace)
-            .kill_on_drop(true)
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
+            .creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        c.spawn()
     }
     .map_err(|e| {
         crate::atoms::error::EngineError::Other(format!("Failed to spawn process: {}", e))
     })?;
+
+    #[cfg(not(target_os = "windows"))]
+    let child = TokioCommand::new("sh")
+        .args(["-c", command])
+        .current_dir(&workspace)
+        .kill_on_drop(true)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| {
+            crate::atoms::error::EngineError::Other(format!("Failed to spawn process: {}", e))
+        })?;
 
     let output =
         match tokio::time::timeout(Duration::from_secs(timeout_secs), child.wait_with_output())

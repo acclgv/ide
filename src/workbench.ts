@@ -146,10 +146,9 @@ import {
   applyDocumentAppearance,
   buildWorkbenchColorCustomizations,
   buildWorkbenchConfigurationDefaults,
-  HANZO_LIGHT_PALETTE,
-  HANZO_OBSIDIAN_PALETTE,
-  readStoredAppearance,
-  type HanzoAppearance,
+  getPaletteById,
+  readStoredThemeId,
+  type HanzoThemeId,
 } from './hanzo/theme.ts'
 
 // ─── Workbench initialization ─────────────────────────────────────────────────
@@ -161,8 +160,11 @@ function setLoadingStatus(msg: string) {
 }
 
 export async function initializeWorkbench(): Promise<void> {
-  const initialAppearance = readStoredAppearance()
-  applyDocumentAppearance(initialAppearance)
+  const initialThemeId = readStoredThemeId()
+  applyDocumentAppearance(initialThemeId)
+  // Mount `#hanzo-zen-toolbar` (40px flex child) BEFORE Monaco measures `#workbench-shell`
+  const { mountWorkbenchShellChrome } = await import('./hanzo/account.ts')
+  mountWorkbenchShellChrome()
   const container = document.getElementById('workbench-shell')!
 
   // Inject a visible status line into the loading screen
@@ -196,9 +198,106 @@ export async function initializeWorkbench(): Promise<void> {
     check()
   })
 
-  // ─── Register FS provider BEFORE initialize() ─────────────────────────────
+  // ─── Register FS provider & Hanzo Chat view BEFORE initialize() ───────────
+  // `registerHanzoChat` MUST run before `initialize()` so `ViewContainersRegistry`
+  // knows `hanzo.chat` is the default AuxiliaryBar container during layout restore!
   setLoadingStatus('Registering file system...')
   registerFileSystemOverlay(1, new TauriFileSystemProvider())
+  try {
+    registerHanzoChat()
+  } catch (e) {
+    console.warn('[hanzo-boot] early chat view registration warning:', e)
+  }
+
+  // `#hanzo-zen-toolbar` (40px) is mounted directly on `document.body`, so
+  // VS Code's internal `.part.titlebar` reserves 0px height.
+  try {
+    const { BrowserTitlebarPart } = await import(
+      '@codingame/monaco-vscode-view-title-bar-service-override/vscode/vs/workbench/browser/parts/titlebar/titlebarPart'
+    )
+    Object.defineProperty(BrowserTitlebarPart.prototype, 'minimumHeight', {
+      get() {
+        return 0
+      },
+      configurable: true,
+    })
+  } catch (e) {
+    console.warn('[hanzo-boot] titlebar height override skipped:', e)
+  }
+
+  // Resolve CLI quick-file / extra files ahead of `initialize()` so VS Code's
+  // native `defaultLayout.editors` opens them directly in Group 1 on first paint!
+  const { URI } = await import('@codingame/monaco-vscode-api/vscode/vs/base/common/uri')
+  const { parseQuickFileTargetFromLocation } = await import('./hanzo/mcp-catalog.ts')
+  const initialEditorEntries: Array<{ uri: any; viewColumn: number; options?: any }> = []
+  const urlQuick = parseQuickFileTargetFromLocation(window.location.search, window.location.hash)
+  if (urlQuick.quickFile) {
+    initialEditorEntries.push({
+      uri: URI.file(urlQuick.quickFile),
+      viewColumn: 1,
+      options: {
+        pinned: true,
+        ...(urlQuick.line
+          ? {
+              selection: {
+                startLineNumber: urlQuick.line,
+                startColumn: urlQuick.column ?? 1,
+                endLineNumber: urlQuick.line,
+                endColumn: urlQuick.column ?? 1,
+              },
+            }
+          : {}),
+      },
+    })
+  }
+  if (tauri()) {
+    try {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const cli = await invoke<{
+        kind: string
+        path?: string | null
+        extra_files?: string[]
+        line?: number | null
+        column?: number | null
+      }>('get_cli_launch_target')
+      if (cli?.kind === 'file' && cli.path && initialEditorEntries.length === 0) {
+        let exists = true
+        try {
+          await invoke('ide_stat', { path: cli.path })
+        } catch {
+          exists = false
+        }
+        initialEditorEntries.push({
+          uri: exists ? URI.file(cli.path) : URI.file(cli.path).with({ scheme: 'untitled' }),
+          viewColumn: 1,
+          options: {
+            pinned: true,
+            ...(cli.line
+              ? {
+                  selection: {
+                    startLineNumber: cli.line,
+                    startColumn: cli.column ?? 1,
+                    endLineNumber: cli.line,
+                    endColumn: cli.column ?? 1,
+                  },
+                }
+              : {}),
+          },
+        })
+      }
+      for (const extra of cli?.extra_files ?? []) {
+        if (extra && !initialEditorEntries.some((e) => e.uri?.path === extra)) {
+          initialEditorEntries.push({
+            uri: URI.file(extra),
+            viewColumn: 1,
+            options: { pinned: true, preserveFocus: initialEditorEntries.length > 0 },
+          })
+        }
+      }
+    } catch {
+      /* non-fatal */
+    }
+  }
 
   setLoadingStatus('Initializing VS Code workbench...')
   await initialize(
@@ -330,20 +429,32 @@ export async function initializeWorkbench(): Promise<void> {
 
       workspaceProvider: createWorkspaceProvider(),
 
-      defaultLayout: { views: [{ id: 'hanzo.chat' }] },
+      // Mount both Explorer (`workbench.explorer.fileView`) and `hanzo.chat` view containers
+      // so toggling Left Explorer or Right Agent/MCP Dock immediately renders live content;
+      // `zen-workspace.ts` controls initial part visibility (minimal on empty boot, Explorer on folder open).
+      defaultLayout: {
+        views: [{ id: 'workbench.explorer.fileView' }, { id: 'hanzo.chat' }],
+        ...(initialEditorEntries.length > 0
+          ? {
+              editors: initialEditorEntries,
+              force: true,
+            }
+          : {}),
+      },
 
       configurationDefaults: {
         ...buildWorkbenchConfigurationDefaults(),
-        'workbench.colorTheme':
-          initialAppearance === 'light'
-            ? HANZO_LIGHT_PALETTE.baseVsCodeTheme
-            : HANZO_OBSIDIAN_PALETTE.baseVsCodeTheme,
+        'workbench.colorTheme': getPaletteById(initialThemeId).baseVsCodeTheme,
+        'workbench.colorCustomizations': buildWorkbenchColorCustomizations(initialThemeId),
       },
     },
   )
 
-  // Core workbench initialized — loading screen can now be removed.
-  // Everything below runs in initializeDeferredFeatures() AFTER the UI is visible.
+  // Core workbench initialized — if `defaultLayout.editors` wasn't already populated, run quick-file fallback
+  if (initialEditorEntries.length === 0) {
+    const { openQuickLaunchFileIfPresent } = await import('./hanzo/workspace.ts')
+    void openQuickLaunchFileIfPresent()
+  }
 }
 
 /**
@@ -360,6 +471,14 @@ export async function initializeDeferredFeatures(): Promise<void> {
   // / progress listeners). Removed in extraction phase 2 along with the
   // rest of the Hanzo AI frontend assets.
 
+  // ─── Mount Zen 38px Toolbar & Minimal Workspace Layout Immediately ─────────
+  import('./hanzo/account.ts')
+    .then(({ registerAccount }) => registerAccount())
+    .catch((e) => console.warn('[hanzo] account toolbar failed:', e))
+  import('./hanzo/zen-workspace.ts')
+    .then(({ initializeZenWorkspace }) => initializeZenWorkspace())
+    .catch((e) => console.warn('[hanzo] zen workspace failed:', e))
+
   // ─── Hanzo AI Features ──────────────────────────────────────────────────
   // Each feature in its own try/catch so one failure doesn't kill the rest
   try { registerHanzoSettingsPane() } catch (e) { console.warn('[hanzo] settings pane failed:', e) }
@@ -375,9 +494,6 @@ export async function initializeDeferredFeatures(): Promise<void> {
     .then((m) => m.registerAddToChat())
     .catch((e) => console.warn('[hanzo] add-to-chat failed:', e))
   registerMemory().catch(e => console.warn('[hanzo] memory palace failed:', e))
-  import('./hanzo/account.ts')
-    .then(({ registerAccount }) => registerAccount())
-    .catch(e => console.warn('[hanzo] account control failed:', e))
   import('./hanzo/zap.ts')
     .then(({ registerZap }) => registerZap())
     .catch(e => console.warn('[hanzo] local bus listener failed:', e))
@@ -390,12 +506,36 @@ export async function initializeDeferredFeatures(): Promise<void> {
   })
   console.log('[hanzo] AI features registered')
 
-  // ─── Register Open Folder command in command palette ────────────────────
+  // ─── Register Open Folder / File commands in command palette ──────────────
   const { CommandsRegistry } = await import('@codingame/monaco-vscode-api/vscode/vs/platform/commands/common/commands')
-  const { pickAndOpenFolder } = await import('./hanzo/workspace.ts')
+  const { pickAndOpenFolder, pickAndOpenFile } = await import('./hanzo/workspace.ts')
 
   CommandsRegistry.registerCommand('hanzo.openFolder', () => pickAndOpenFolder())
+  CommandsRegistry.registerCommand('hanzo.openFile', () => pickAndOpenFile())
   CommandsRegistry.registerCommand('workbench.action.files.openFolder', () => pickAndOpenFolder())
+  CommandsRegistry.registerCommand('hanzo.getPhoneApp', () => {
+    void import('./hanzo/phone-app-modal.ts').then((m) => m.openPhoneAppModal())
+  })
+  CommandsRegistry.registerCommand('hanzo.newScratchFile', () => {
+    void import('./hanzo/zen-workspace.ts').then(({ execZenCommand }) => {
+      void execZenCommand('workbench.action.files.newUntitledFile')
+    })
+  })
+  CommandsRegistry.registerCommand('hanzo.mcp.openDrawer', () => {
+    void import('./hanzo/zen-workspace.ts').then(({ toggleZenPanel }) => {
+      void toggleZenPanel('integrations')
+    })
+  })
+  CommandsRegistry.registerCommand('hanzo.mcp.runTool', () => {
+    void import('./hanzo/mcp-drawer.ts').then(({ openMcpToolRunnerModal }) => {
+      openMcpToolRunnerModal()
+    })
+  })
+  CommandsRegistry.registerCommand('hanzo.mcp.addCustomServer', () => {
+    void import('./hanzo/mcp-drawer.ts').then(({ openAddCustomMcpModal }) => {
+      openAddCustomMcpModal()
+    })
+  })
 
   // ─── Register Extension MCP Adapters ─────────────────────────────────────
   try {
@@ -470,25 +610,12 @@ export async function initializeDeferredFeatures(): Promise<void> {
     })
     return hidAny
   }
-  function patchWatermark(): boolean {
-    const letterpress = document.querySelector<HTMLElement>(
-      '.monaco-workbench .editor-group-watermark .letterpress, .monaco-workbench .editor-group-watermark > .letterpress'
-    )
-    if (!letterpress) return false
-    letterpress.style.cssText += ';background:url("/mark.svg") center/contain no-repeat!important;width:76px!important;height:76px!important;font-size:0!important;color:transparent!important;opacity:1!important;filter:none!important'
-    Array.from(letterpress.children).forEach(c => { (c as HTMLElement).style.display = 'none' })
-    return true
-  }
-
-  patchWatermark()
   hideVscodeExtensions()
-  let watermarkPatched = false
   let extensionsHidden = false
   const workbench = document.querySelector('.monaco-workbench') ?? document.body
   const observer = new MutationObserver(() => {
-    if (!watermarkPatched) watermarkPatched = patchWatermark()
     if (!extensionsHidden) extensionsHidden = hideVscodeExtensions()
-    if (watermarkPatched && extensionsHidden) observer.disconnect()
+    if (extensionsHidden) observer.disconnect()
   })
   observer.observe(workbench, { childList: true, subtree: true })
   setTimeout(() => observer.disconnect(), 30_000)
@@ -598,10 +725,10 @@ export async function initializeDeferredFeatures(): Promise<void> {
     console.warn('[hanzo] App-menu listener setup failed:', e)
   }
 
-  // ─── Apply Hanzo Unified Shell theme & register shell commands ───────────
-  const setAppearance = async (next: HanzoAppearance) => {
+  // ─── Apply Hanzo IDE — Zen theme & register shell commands ──────────────
+  const setTheme = async (next: HanzoThemeId) => {
     applyDocumentAppearance(next)
-    const palette = next === 'light' ? HANZO_LIGHT_PALETTE : HANZO_OBSIDIAN_PALETTE
+    const palette = getPaletteById(next)
     await updateUserConfiguration(
       JSON.stringify({
         'workbench.colorTheme': palette.baseVsCodeTheme,
@@ -610,16 +737,29 @@ export async function initializeDeferredFeatures(): Promise<void> {
     )
   }
 
-  CommandsRegistry.registerCommand('hanzo.useDarkTheme', () => setAppearance('dark'))
-  CommandsRegistry.registerCommand('hanzo.useLightTheme', () => setAppearance('light'))
+  CommandsRegistry.registerCommand('hanzo.useZenTheme', () => setTheme('zen'))
+  CommandsRegistry.registerCommand('hanzo.useClayTheme', () => setTheme('clay'))
+  CommandsRegistry.registerCommand('hanzo.useDarkTheme', () => setTheme('zen'))
+  CommandsRegistry.registerCommand('hanzo.useLightTheme', () => setTheme('light'))
   CommandsRegistry.registerCommand('hanzo.toggleTheme', () => {
-    const next: HanzoAppearance = readStoredAppearance() === 'light' ? 'dark' : 'light'
-    return setAppearance(next)
+    const next: HanzoThemeId = readStoredThemeId() === 'light' ? 'zen' : 'light'
+    return setTheme(next)
+  })
+  CommandsRegistry.registerCommand('hanzo.cycleTheme', () => {
+    const cur = readStoredThemeId()
+    const next: HanzoThemeId = cur === 'zen' ? 'clay' : cur === 'clay' ? 'light' : 'zen'
+    return setTheme(next)
   })
   if (tauri()) {
     const { setDockIconMode } = await import('./hanzo/dock-icon.ts')
     CommandsRegistry.registerCommand('hanzo.dockIcon.branded', () => setDockIconMode('branded'))
     CommandsRegistry.registerCommand('hanzo.dockIcon.minimal', () => setDockIconMode('minimal'))
+    const { listen } = await import('./hanzo/tauri.ts')
+    void listen<string>('open-hanzo-settings', ({ payload }) => {
+      void import('./hanzo/settings-modal.ts').then(({ openHanzoSettingsModal }) => {
+        openHanzoSettingsModal((payload as any) || 'local-node')
+      })
+    }).catch(() => {})
   }
   CommandsRegistry.registerCommand('hanzo.commandOrInlineEdit', async () => {
     const { StandaloneServices, getService, ICodeEditorService } = await import(
@@ -639,10 +779,14 @@ export async function initializeDeferredFeatures(): Promise<void> {
     }
   })
 
-  // Global Unified Shell shortcuts matching Hanzo Dev & Hanzo Team:
-  //   ⌘K → Command Palette (when not editing a non-empty code selection)
-  //   ⌘, → Settings
-  //   ⌥⌘B → Toggle Hanzo Agent Panel
+  // Global Zen Workspace shortcuts (`hanzo-ide.html` + `Hanzo Dev` parity):
+  //   Ctrl/⌘ K        → Command Palette (and starts 1.4s chord for Ctrl+K Ctrl+O → Open folder)
+  //   Ctrl/⌘ O        → Open file (or Open folder if within Ctrl+K chord)
+  //   Ctrl/⌘ B        → Toggle Left Sidebar
+  //   Ctrl `          → Toggle Bottom Terminal Panel
+  //   Ctrl/⌘ Alt B    → Toggle Right AI Sidebar
+  //   Ctrl/⌘ ,        → Settings
+  let chordTimestamp = 0
   window.addEventListener(
     'keydown',
     (e) => {
@@ -650,45 +794,66 @@ export async function initializeDeferredFeatures(): Promise<void> {
       if (!mod) return
       const key = e.key.toLowerCase()
       if (key === 'k' && !e.shiftKey && !e.altKey) {
+        chordTimestamp = Date.now()
         const target = e.target as HTMLElement | null
         if (target?.closest?.('.monaco-editor')) return // handled by inline.ts
         if (target?.closest?.('.quick-input-widget')) return
         e.preventDefault()
         e.stopPropagation()
-        void import('@codingame/monaco-vscode-api/services').then(async ({ StandaloneServices }) => {
-          const { ICommandService } = await import(
-            '@codingame/monaco-vscode-api/vscode/vs/platform/commands/common/commands'
-          )
-          await (StandaloneServices.get(ICommandService) as any)?.executeCommand?.(
-            'workbench.action.showCommands',
-          )
+        void import('./hanzo/zen-workspace.ts').then(({ execZenCommand }) => {
+          void execZenCommand('workbench.action.showCommands')
         })
+      } else if (key === 'p' && !e.shiftKey && !e.altKey) {
+        if ((e.target as HTMLElement | null)?.closest?.('.quick-input-widget')) return
+        e.preventDefault()
+        e.stopPropagation()
+        void import('./hanzo/zen-workspace.ts').then(({ execZenCommand }) => {
+          void execZenCommand('workbench.action.quickOpen')
+        })
+      } else if (key === 'n' && !e.shiftKey && !e.altKey) {
+        e.preventDefault()
+        e.stopPropagation()
+        void import('./hanzo/zen-workspace.ts').then(({ execZenCommand }) => {
+          void execZenCommand('workbench.action.files.newUntitledFile')
+        })
+      } else if (key === 'o' && !e.shiftKey && !e.altKey) {
+        e.preventDefault()
+        e.stopPropagation()
+        const inChord = Date.now() - chordTimestamp < 1400
+        chordTimestamp = 0
+        if (inChord) {
+          void pickAndOpenFolder()
+        } else {
+          void pickAndOpenFile()
+        }
       } else if (e.key === ',' && !e.shiftKey && !e.altKey) {
         e.preventDefault()
         e.stopPropagation()
-        void import('@codingame/monaco-vscode-api/services').then(async ({ StandaloneServices }) => {
-          const { ICommandService } = await import(
-            '@codingame/monaco-vscode-api/vscode/vs/platform/commands/common/commands'
-          )
-          await (StandaloneServices.get(ICommandService) as any)?.executeCommand?.(
-            'workbench.action.openSettings',
-          )
+        void import('./hanzo/settings-modal.ts').then(({ openHanzoSettingsModal }) => {
+          openHanzoSettingsModal('general')
         })
       } else if (key === 'b' && e.altKey && !e.shiftKey) {
         e.preventDefault()
         e.stopPropagation()
-        void import('@codingame/monaco-vscode-api/services').then(async ({ StandaloneServices }) => {
-          const { ICommandService } = await import(
-            '@codingame/monaco-vscode-api/vscode/vs/platform/commands/common/commands'
-          )
-          await (StandaloneServices.get(ICommandService) as any)?.executeCommand?.(
-            'workbench.action.toggleAuxiliaryBar',
-          )
+        void import('./hanzo/zen-workspace.ts').then(({ toggleZenPanel }) => {
+          void toggleZenPanel('right')
+        })
+      } else if (key === 'b' && !e.altKey && !e.shiftKey) {
+        e.preventDefault()
+        e.stopPropagation()
+        void import('./hanzo/zen-workspace.ts').then(({ toggleZenPanel }) => {
+          void toggleZenPanel('left')
+        })
+      } else if (e.key === '`' && !e.altKey && !e.shiftKey) {
+        e.preventDefault()
+        e.stopPropagation()
+        void import('./hanzo/zen-workspace.ts').then(({ toggleZenPanel }) => {
+          void toggleZenPanel('bottom')
         })
       }
     },
     { capture: true },
   )
 
-  await setAppearance(readStoredAppearance())
+  await setTheme(readStoredThemeId())
 }

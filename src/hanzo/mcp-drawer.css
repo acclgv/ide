@@ -1,0 +1,503 @@
+/* ── Hanzo IDE — MCP & Code Intelligence Drawer (`mcp-drawer.css`) ──────────
+ * Zen `#0c0c0c` dock + `#141414` elevated cards & interactive Run Tool / Add Server modals.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+.hz-mcp-drawer {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-family: var(--hanzo-font-ui);
+  color: var(--zen-fg, #e5e5e5);
+}
+
+.hz-mcp-drawer[hidden] {
+  display: none !important;
+}
+
+.hz-mcp-summary-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 7px 9px;
+  border-radius: 8px;
+  background: var(--zen-surface, #141414);
+  border: 1px solid var(--zen-border, #222222);
+}
+
+.hz-mcp-summary-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--zen-fg, #e5e5e5);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hz-mcp-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #555555;
+  flex-shrink: 0;
+}
+
+.hz-mcp-dot[data-live='true'] {
+  background: #82a681;
+  box-shadow: 0 0 0 2px rgba(130, 166, 129, 0.18);
+}
+
+.hz-mcp-summary-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.hz-mcp-btn {
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  border: 1px solid #2b2b2b;
+  background: #191919;
+  color: #d4d4d4;
+  font-family: var(--hanzo-font-ui);
+  font-size: 11px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 110ms ease, border-color 110ms ease, color 110ms ease;
+}
+
+.hz-mcp-btn:hover:not(:disabled) {
+  background: #242424;
+  border-color: #3a3a3a;
+  color: #ffffff;
+}
+
+.hz-mcp-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.hz-mcp-btn--primary {
+  background: #ededed;
+  border-color: #ededed;
+  color: #0b0b0b;
+  font-weight: 600;
+}
+
+.hz-mcp-btn--primary:hover:not(:disabled) {
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #000000;
+}
+
+[data-hanzo-theme='light'] .hz-mcp-btn {
+  background: #f4f4f5;
+  border-color: #e4e4e7;
+  color: #27272a;
+}
+
+[data-hanzo-theme='light'] .hz-mcp-btn--primary {
+  background: #18181b;
+  border-color: #18181b;
+  color: #ffffff;
+}
+
+/* ── Featured HIP-0300 Card ───────────────────────────────────────────────── */
+
+.hz-mcp-hero-card {
+  padding: 10px 11px;
+  border-radius: 10px;
+  background: var(--zen-surface, #141414);
+  border: 1px solid #282828;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hz-mcp-hero-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hz-mcp-hero-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.hz-mcp-hero-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--zen-fg, #eeeeee);
+}
+
+.hz-mcp-badge {
+  font-family: var(--hanzo-font-mono);
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #222222;
+  border: 1px solid #303030;
+  color: #bdbdbd;
+}
+
+[data-hanzo-theme='light'] .hz-mcp-badge {
+  background: #f4f4f5;
+  border-color: #e4e4e7;
+  color: #52525b;
+}
+
+.hz-mcp-hero-sub {
+  font-size: 11px;
+  color: #8c8c8c;
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+.hz-mcp-bin-path {
+  font-family: var(--hanzo-font-mono);
+  font-size: 10.5px;
+  color: #8c8c8c;
+  background: #0e0e0e;
+  border: 1px solid #1f1f1f;
+  border-radius: 5px;
+  padding: 3px 7px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.hz-mcp-bin-path span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hz-mcp-tool-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.hz-mcp-tool-chip {
+  height: 21px;
+  padding: 0 7px;
+  border-radius: 5px;
+  border: 1px solid #262626;
+  background: #101010;
+  color: #c8c8c8;
+  font-family: var(--hanzo-font-mono);
+  font-size: 10.5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  transition: background-color 100ms ease, border-color 100ms ease, color 100ms ease;
+}
+
+.hz-mcp-tool-chip:hover {
+  background: #222222;
+  border-color: #3a3a3a;
+  color: #ffffff;
+}
+
+[data-hanzo-theme='light'] .hz-mcp-tool-chip {
+  background: #fafafa;
+  border-color: #e4e4e7;
+  color: #27272a;
+}
+
+/* ── Section Headings & Capability / Preset Lists ─────────────────────────── */
+
+.hz-mcp-section {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.hz-mcp-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 2px;
+}
+
+.hz-mcp-section-head h3 {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #828282;
+  margin: 0;
+}
+
+.hz-mcp-section-head span {
+  font-family: var(--hanzo-font-mono);
+  font-size: 10.5px;
+  color: #6e6e6e;
+}
+
+.hz-mcp-card-list {
+  border-radius: 9px;
+  border: 1px solid var(--zen-border, #222222);
+  background: var(--zen-surface, #141414);
+  overflow: hidden;
+}
+
+.hz-mcp-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #1e1e1e;
+}
+
+.hz-mcp-row:last-child {
+  border-bottom: none;
+}
+
+[data-hanzo-theme='light'] .hz-mcp-row {
+  border-bottom-color: #ececef;
+}
+
+.hz-mcp-row-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: #1c1c1c;
+  color: #bdbdbd;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+[data-hanzo-theme='light'] .hz-mcp-row-icon {
+  background: #f4f4f5;
+  color: #3f3f46;
+}
+
+.hz-mcp-row-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.hz-mcp-row-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--zen-fg, #e5e5e5);
+}
+
+.hz-mcp-row-sub {
+  font-size: 10.5px;
+  color: #858585;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+.hz-mcp-row-tools {
+  font-family: var(--hanzo-font-mono);
+  font-size: 10px;
+  color: #6d6d6d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+/* Crisp Switch Toggle */
+.hz-mcp-switch {
+  width: 30px;
+  height: 17px;
+  border-radius: 99px;
+  border: 1px solid #303030;
+  background: #1b1b1b;
+  padding: 1px;
+  cursor: pointer;
+  position: relative;
+  flex-shrink: 0;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.hz-mcp-switch::after {
+  content: '';
+  display: block;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #787878;
+  transition: transform 120ms ease, background-color 120ms ease;
+}
+
+.hz-mcp-switch[aria-checked='true'] {
+  background: #273327;
+  border-color: #486348;
+}
+
+.hz-mcp-switch[aria-checked='true']::after {
+  transform: translateX(13px);
+  background: #9ad198;
+}
+
+.hz-mcp-add-btn {
+  width: 100%;
+  height: 33px;
+  padding: 0 11px;
+  border-radius: 8px;
+  border: 1px dashed #303030;
+  background: #121212;
+  color: #c8c8c8;
+  font-family: var(--hanzo-font-ui);
+  font-size: 12px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: background-color 110ms ease, border-color 110ms ease, color 110ms ease;
+}
+
+.hz-mcp-add-btn:hover {
+  background: #191919;
+  border-color: #454545;
+  color: #ffffff;
+}
+
+/* ── Interactive Run Tool & Custom MCP Modals (`#141414`) ─────────────────── */
+
+.hz-mcp-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10040;
+  background: rgba(0, 0, 0, 0.68);
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.hz-mcp-modal {
+  width: 100%;
+  max-width: 520px;
+  border-radius: 12px;
+  background: #141414;
+  border: 1px solid #2b2b2b;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.82);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: var(--hanzo-font-ui);
+  color: #e5e5e5;
+}
+
+[data-hanzo-theme='light'] .hz-mcp-modal {
+  background: #ffffff;
+  border-color: #e4e4e7;
+  color: #18181b;
+}
+
+.hz-mcp-modal-head {
+  height: 42px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #222222;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.hz-mcp-modal-body {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 72vh;
+  overflow-y: auto;
+}
+
+.hz-mcp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hz-mcp-field label {
+  font-size: 11px;
+  font-weight: 500;
+  color: #9a9a9a;
+}
+
+.hz-mcp-input,
+.hz-mcp-select,
+.hz-mcp-codearea {
+  width: 100%;
+  border-radius: 7px;
+  border: 1px solid #2b2b2b;
+  background: #0d0d0d;
+  color: #e5e5e5;
+  font-family: var(--hanzo-font-ui);
+  font-size: 12px;
+  padding: 7px 9px;
+  outline: none;
+}
+
+.hz-mcp-codearea {
+  font-family: var(--hanzo-font-mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  min-height: 92px;
+  resize: vertical;
+}
+
+.hz-mcp-input:focus,
+.hz-mcp-select:focus,
+.hz-mcp-codearea:focus {
+  border-color: #484848;
+}
+
+.hz-mcp-output {
+  border-radius: 7px;
+  border: 1px solid #222222;
+  background: #090909;
+  padding: 9px 10px;
+  font-family: var(--hanzo-font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+  color: #cfcfcf;
+  max-height: 210px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.hz-mcp-modal-foot {
+  padding: 10px 14px;
+  border-top: 1px solid #222222;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}

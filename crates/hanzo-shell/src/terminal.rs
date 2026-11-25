@@ -76,15 +76,31 @@ impl TerminalState {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/// B117: cross-platform shell selection — prefer pwsh/powershell on Windows,
-/// fall back through zsh→bash→sh on Unix.
+/// B117: cross-platform shell selection — on Windows supports `powershell.exe`,
+/// `pwsh.exe`, or `wsl.exe` (via `HANZO_WINDOWS_SHELL` / `HANZO_SHELL`), and
+/// falls back through zsh→bash→sh on Unix.
 fn default_shell() -> String {
-    if cfg!(target_os = "windows") {
-        if which::which("pwsh").is_ok() {
-            return "pwsh".to_string();
+    if let Ok(explicit) = std::env::var("HANZO_SHELL") {
+        let trimmed = explicit.trim();
+        if !trimmed.is_empty() {
+            return trimmed.to_string();
         }
-        if which::which("powershell").is_ok() {
-            return "powershell".to_string();
+    }
+    if cfg!(target_os = "windows") {
+        if let Ok(pref) = std::env::var("HANZO_WINDOWS_SHELL") {
+            let p = pref.trim().to_ascii_lowercase();
+            if (p == "wsl" || p == "wsl.exe") && which::which("wsl.exe").is_ok() {
+                return "wsl.exe".to_string();
+            }
+        }
+        if which::which("pwsh.exe").is_ok() {
+            return "pwsh.exe".to_string();
+        }
+        if which::which("powershell.exe").is_ok() {
+            return "powershell.exe".to_string();
+        }
+        if which::which("wsl.exe").is_ok() {
+            return "wsl.exe".to_string();
         }
         std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".into())
     } else if let Ok(s) = std::env::var("SHELL") {
@@ -130,7 +146,19 @@ pub async fn terminal_spawn(
 ) -> Result<TerminalSpawnResult, String> {
     let cols = request.cols.unwrap_or(80);
     let rows = request.rows.unwrap_or(24);
-    let shell = request.shell.unwrap_or_else(default_shell);
+    let wsl_distro = if cfg!(target_os = "windows") {
+        std::env::var("HANZO_WSL_DISTRO")
+            .ok()
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+    } else {
+        None
+    };
+    let shell = if wsl_distro.is_some() {
+        "wsl.exe".to_string()
+    } else {
+        request.shell.unwrap_or_else(default_shell)
+    };
     let cwd = request.cwd.unwrap_or_else(default_cwd);
 
     let pty_system = native_pty_system();
@@ -145,6 +173,9 @@ pub async fn terminal_spawn(
         .map_err(|e| format!("Failed to open PTY: {e}"))?;
 
     let mut cmd = CommandBuilder::new(&shell);
+    if let Some(ref distro) = wsl_distro {
+        cmd.args(["-d", distro]);
+    }
     cmd.cwd(&cwd);
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");

@@ -60,10 +60,11 @@ export function setWorkspacePath(path: string | null): void {
  */
 export async function gatherIdeContext(): Promise<string> {
   const parts: string[] = []
+  const ws = getWorkspace()
 
   // Workspace
-  if (_workspacePath) {
-    parts.push(`Workspace: ${_workspacePath}`)
+  if (ws) {
+    parts.push(`Workspace: ${ws}`)
   }
 
   // Active file + content snippet
@@ -167,11 +168,27 @@ export async function gatherIdeContext(): Promise<string> {
   return parts.join('\n')
 }
 
+function readWorkspaceFromLocationHash(): string | null {
+  if (typeof window === 'undefined') return null
+  const hash = window.location.hash.slice(1)
+  if (!hash) return null
+  try {
+    const decoded = decodeURIComponent(hash)
+    if (decoded.startsWith('/') || decoded.startsWith('\\\\') || /^[A-Za-z]:[\\/]/.test(decoded)) {
+      return decoded
+    }
+  } catch {
+    /* ignore malformed hash */
+  }
+  return null
+}
+
 /**
- * Get just the workspace path (for tool routing).
+ * Get the active workspace path (falls back to `window.location.hash` if called
+ * before `initEditorIntegration()` finishes booting).
  */
 export function getWorkspace(): string | null {
-  return _workspacePath
+  return _workspacePath ?? readWorkspaceFromLocationHash()
 }
 
 /** Get the currently active file path. */

@@ -4,6 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Hanzo Chat</title>
+    <script>
+      (function () {
+        var ua = (navigator.platform || '') + ' ' + (navigator.userAgent || '');
+        document.documentElement.dataset.hanzoPlatform = /Mac|Darwin/i.test(ua)
+          ? 'macos'
+          : /Win/i.test(ua)
+            ? 'windows'
+            : 'linux';
+      })();
+    </script>
     <style>
       *,
       *::before,
@@ -20,6 +30,25 @@
         overflow: hidden;
         background: var(--hanzo-floor, #090909);
         color: var(--hanzo-text, #fafafa);
+      }
+
+      html[data-hanzo-platform='linux']:not([data-maximized='true']),
+      html[data-hanzo-platform='linux']:not([data-maximized='true']) body {
+        background: transparent !important;
+        background-color: transparent !important;
+      }
+
+      #hanzo-chat-detached-root {
+        background: var(--hanzo-floor, #090909);
+        height: 100%;
+        width: 100%;
+        position: relative;
+      }
+
+      html[data-hanzo-platform='linux']:not([data-maximized='true']) #hanzo-chat-detached-root {
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.10);
       }
 
       /*

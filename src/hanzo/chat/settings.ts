@@ -1,271 +1,174 @@
 /**
- * Hanzo Chat — Provider Settings
+ * Hanzo Chat — Auto-Seeded Provider Discovery & Grouped Settings Routing
  *
- * Provider configuration UI: tabs, API key input, model discovery, save.
+ * Never replaces or wipes out the chat message list! On startup, probes local
+ * OpenAI-compatible & Ollama endpoints (`hanzo-router` `:1235`, `hanzod` `:3690`,
+ * `hanzo-engine` `:36900`, `Ollama` `:11434`) and seeds a ready default provider
+ * when none is configured yet.
  */
 
 import { invoke } from '@tauri-apps/api/core'
 import { tauri } from '../tauri.ts'
 import { S } from './state.ts'
-import { renderMessagesFull } from './render.ts'
 import { HANZO_OLLAMA_MODEL_PRESETS, HANZO_ZEN_MODEL_PRESETS } from '../theme.ts'
 
-// ─── Provider Definitions ────────────────────────────────────────────────────
-
 export const PROVIDER_DEFS = [
-  { id: 'hanzo',      kind: 'openai',     label: 'Hanzo (Zen)', placeholder: 'hk-...',     url: 'https://api.hanzo.ai/v1',                               models: [...HANZO_ZEN_MODEL_PRESETS] },
-  { id: 'anthropic',  kind: 'anthropic',  label: 'Anthropic',   placeholder: 'sk-ant-...', url: 'https://api.anthropic.com',                             models: ['claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'] },
-  { id: 'openai',     kind: 'openai',     label: 'OpenAI',      placeholder: 'sk-...',     url: 'https://api.openai.com/v1',                             models: ['gpt-4o', 'gpt-4o-mini', 'o3', 'o4-mini'] },
-  { id: 'google',     kind: 'google',     label: 'Google',      placeholder: 'AIza...',    url: 'https://generativelanguage.googleapis.com/v1beta',      models: ['gemini-2.5-pro', 'gemini-2.5-flash', 'gemini-2.0-flash'] },
-  { id: 'openrouter', kind: 'openrouter', label: 'OpenRouter',  placeholder: 'sk-or-...', url: 'https://openrouter.ai/api/v1',                          models: ['anthropic/claude-opus-4', 'google/gemini-2.5-pro', 'qwen/qwen3-235b-a22b', 'deepseek/deepseek-r1'] },
-  { id: 'moonshot',   kind: 'moonshot',   label: 'Moonshot',    placeholder: 'sk-...',     url: 'https://api.moonshot.ai/v1',                            models: ['kimi-k2', 'moonshot-v1-128k', 'moonshot-v1-32k', 'moonshot-v1-8k'] },
-  { id: 'deepseek',   kind: 'deepseek',   label: 'DeepSeek',    placeholder: 'sk-...',     url: 'https://api.deepseek.com',                              models: ['deepseek-chat', 'deepseek-reasoner'] },
-  { id: 'xai',        kind: 'xai',        label: 'xAI (Grok)',  placeholder: 'xai-...',    url: 'https://api.x.ai/v1',                                   models: ['grok-3', 'grok-3-mini', 'grok-2'] },
-  { id: 'mistral',    kind: 'mistral',    label: 'Mistral',     placeholder: 'sk-...',     url: 'https://api.mistral.ai/v1',                             models: ['mistral-large-latest', 'mistral-small-latest', 'codestral-latest'] },
-  { id: 'ollama',     kind: 'ollama',     label: 'Ollama',      placeholder: '(no key)',   url: 'http://localhost:11434',                                models: [...HANZO_OLLAMA_MODEL_PRESETS] },
-  { id: 'claudecode', kind: 'claudecode', label: 'Claude Code', placeholder: '(no key)',   url: '',                                                      models: ['sonnet', 'opus', 'haiku'] },
-  { id: 'custom',     kind: 'custom',     label: 'Custom',      placeholder: 'sk-...',     url: '',                                                      models: [] },
+  { id: 'hanzo',      kind: 'openai',     label: 'Hanzo (Zen)', placeholder: 'hk-...',     url: 'https://api.hanzo.ai/v1',                          models: [...HANZO_ZEN_MODEL_PRESETS] },
+  { id: 'anthropic',  kind: 'anthropic',  label: 'Anthropic',   placeholder: 'sk-ant-...', url: 'https://api.anthropic.com',                        models: ['claude-opus-4-6', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001'] },
+  { id: 'openai',     kind: 'openai',     label: 'OpenAI',      placeholder: 'sk-...',     url: 'https://api.openai.com/v1',                        models: ['gpt-5.4', 'gpt-4o', 'gpt-4o-mini', 'o3', 'o4-mini'] },
+  { id: 'google',     kind: 'google',     label: 'Google',      placeholder: 'AIza...',    url: 'https://generativelanguage.googleapis.com/v1beta', models: ['gemini-3.1-pro-preview', 'gemini-2.5-pro', 'gemini-2.5-flash'] },
+  { id: 'openrouter', kind: 'openrouter', label: 'OpenRouter',  placeholder: 'sk-or-...',  url: 'https://openrouter.ai/api/v1',                     models: ['anthropic/claude-opus-4', 'google/gemini-2.5-pro', 'qwen/qwen3-235b-a22b', 'deepseek/deepseek-r1'] },
+  { id: 'deepseek',   kind: 'deepseek',   label: 'DeepSeek',    placeholder: 'sk-...',     url: 'https://api.deepseek.com',                         models: ['deepseek-chat', 'deepseek-reasoner'] },
+  { id: 'ollama',     kind: 'ollama',     label: 'Ollama',      placeholder: '(local)',    url: 'http://localhost:11434',                           models: [...HANZO_OLLAMA_MODEL_PRESETS] },
+  { id: 'claudecode', kind: 'claudecode', label: 'Claude Code', placeholder: '(CLI)',      url: '',                                                 models: ['sonnet', 'opus', 'haiku'] },
+  { id: 'custom',     kind: 'custom',     label: 'Custom',      placeholder: 'sk-...',     url: '',                                                 models: [] },
 ]
 
-// ─── Input Helpers ───────────────────────────────────────────────────────────
-
-function inp(style = ''): HTMLInputElement {
-  const i = document.createElement('input')
-  i.style.cssText = `background:var(--vscode-input-background,#1e1e1e);color:var(--vscode-input-foreground,#ccc);border:1px solid var(--vscode-input-border,#3c3c3c);border-radius:4px;padding:6px 8px;font-size:12px;outline:none;width:100%;box-sizing:border-box;${style}`
-  i.addEventListener('focus', () => { i.style.borderColor = '#ffffff' })
-  i.addEventListener('blur',  () => { i.style.borderColor = 'var(--vscode-input-border,#3c3c3c)' })
-  return i
+interface ProbeCandidate {
+  id: string
+  name: string
+  kind: 'openai' | 'ollama'
+  baseUrl: string
+  probeUrl: string
+  fallbackModel: string
 }
 
-function lbl(text: string): HTMLElement {
-  const l = document.createElement('div')
-  l.style.cssText = 'font-size:10px;color:var(--vscode-descriptionForeground);margin-bottom:3px;margin-top:8px'
-  l.textContent = text
-  return l
+const LOCAL_PROBES: readonly ProbeCandidate[] = [
+  {
+    id: 'hanzo-router-local',
+    name: 'Hanzo Router (Local)',
+    kind: 'openai',
+    baseUrl: 'http://127.0.0.1:1235/v1',
+    probeUrl: 'http://127.0.0.1:1235/v1/models',
+    fallbackModel: 'zen6-coder',
+  },
+  {
+    id: 'hanzod-local',
+    name: 'Hanzo Node (hanzod)',
+    kind: 'openai',
+    baseUrl: 'http://127.0.0.1:3690/v1',
+    probeUrl: 'http://127.0.0.1:3690/v1/models',
+    fallbackModel: 'zen6-coder',
+  },
+  {
+    id: 'hanzo-engine-local',
+    name: 'Hanzo Engine (Local)',
+    kind: 'openai',
+    baseUrl: 'http://127.0.0.1:36900/v1',
+    probeUrl: 'http://127.0.0.1:36900/v1/models',
+    fallbackModel: 'zen6-coder',
+  },
+  {
+    id: 'ollama',
+    name: 'Ollama (Local)',
+    kind: 'ollama',
+    baseUrl: 'http://localhost:11434',
+    probeUrl: 'http://localhost:11434/api/tags',
+    fallbackModel: 'qwen3-coder:30b',
+  },
+] as const
+
+async function probeEndpoint(c: ProbeCandidate): Promise<string[] | null> {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), 700)
+  try {
+    const res = await fetch(c.probeUrl, { signal: ctrl.signal })
+    if (!res.ok) return null
+    const json = await res.json()
+    if (c.kind === 'ollama') {
+      const names = Array.isArray(json?.models)
+        ? json.models.map((m: any) => String(m?.name || '')).filter(Boolean)
+        : []
+      return names.length ? names : [c.fallbackModel]
+    }
+    const ids = Array.isArray(json?.data)
+      ? json.data.map((m: any) => String(m?.id || '')).filter(Boolean)
+      : []
+    return ids.length ? ids : [c.fallbackModel]
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
-// ─── Provider Check ──────────────────────────────────────────────────────────
-
-export async function checkProviders(): Promise<void> {
-  if (!tauri()) { S.needsProviderSetup = false; return }
+export async function probeAndAutoSeedProviders(force = false): Promise<void> {
+  if (!tauri()) {
+    S.needsProviderSetup = false
+    return
+  }
   try {
     const config = await invoke<any>('engine_get_config')
-    S.needsProviderSetup = !config?.providers?.length
-  } catch {
+    const existingProviders: any[] = config?.providers ?? []
+    if (!force && existingProviders.length > 0) {
+      const hasUsable = existingProviders.some(
+        (p: any) => Boolean(p?.api_key) || p?.kind === 'ollama' || p?.kind === 'claudecode' || String(p?.base_url || '').includes('127.0.0.1') || String(p?.base_url || '').includes('localhost'),
+      )
+      S.needsProviderSetup = !hasUsable
+      return
+    }
+
+    // Probe local inference daemons in parallel (`:1235`, `:3690`, `:36900`, `:11434`).
+    const probed = await Promise.all(
+      LOCAL_PROBES.map(async (c) => ({ candidate: c, models: await probeEndpoint(c) })),
+    )
+    const hit = probed.find((p) => p.models !== null)
+    if (hit && hit.models) {
+      const defaultModel = hit.models[0] || hit.candidate.fallbackModel
+      await invoke('engine_upsert_provider', {
+        provider: {
+          id: hit.candidate.id,
+          name: hit.candidate.name,
+          kind: hit.candidate.kind,
+          api_key: '',
+          base_url: hit.candidate.baseUrl,
+          default_model: defaultModel,
+          enabled_models: hit.models,
+        },
+      })
+      const latest = await invoke<any>('engine_get_config')
+      await invoke('engine_set_config', {
+        config: { ...latest, default_provider: hit.candidate.id, default_model: defaultModel },
+      })
+      S.selectedModel = defaultModel
+      S.needsProviderSetup = false
+      return
+    }
+
+    // Seed Zen presets so the Model picker always has crisp Zen 6 defaults ready.
+    if (existingProviders.length === 0) {
+      await invoke('engine_upsert_provider', {
+        provider: {
+          id: 'hanzo',
+          name: 'Hanzo (Zen)',
+          kind: 'openai',
+          api_key: '',
+          base_url: 'https://api.hanzo.ai/v1',
+          default_model: 'zen6-coder',
+          enabled_models: [...HANZO_ZEN_MODEL_PRESETS],
+        },
+      }).catch(() => {})
+      const latest = await invoke<any>('engine_get_config').catch(() => null)
+      if (latest && !latest.default_model) {
+        await invoke('engine_set_config', {
+          config: { ...latest, default_provider: 'hanzo', default_model: 'zen6-coder' },
+        }).catch(() => {})
+      }
+      S.selectedModel ??= 'zen6-coder'
+    }
     S.needsProviderSetup = true
+  } catch {
+    S.needsProviderSetup = false
   }
 }
 
-// ─── Provider Setup UI ───────────────────────────────────────────────────────
+export async function checkProviders(): Promise<void> {
+  await probeAndAutoSeedProviders(false)
+}
 
+/** Opens the unified Hanzo Dev-style grouped Settings modal on Models & Providers. */
 export function renderProviderSetup(): void {
-  if (!S.msgList) return
-  S.msgList.innerHTML = ''
-
-  const wrap = document.createElement('div')
-  wrap.style.cssText = 'padding:12px;display:flex;flex-direction:column;gap:0;overflow-y:auto;height:100%'
-
-  const header = document.createElement('div')
-  header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px'
-  header.innerHTML = '<span style="font-size:13px;font-weight:600;color:var(--vscode-foreground)">AI Providers</span>'
-  const backBtn = document.createElement('button')
-  backBtn.textContent = '← Back to chat'
-  backBtn.style.cssText = 'background:transparent;border:none;cursor:pointer;font-size:11px;color:var(--vscode-descriptionForeground);padding:2px 4px'
-  backBtn.addEventListener('click', () => { S.needsProviderSetup = false; renderMessagesFull() })
-  header.appendChild(backBtn)
-  wrap.appendChild(header)
-
-  const tabs = document.createElement('div')
-  tabs.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px'
-
-  let selectedProvDef = PROVIDER_DEFS[0]
-  const configArea = document.createElement('div')
-  // Generation guard: rapid tab clicks fire overlapping async builds; without
-  // this each cleared configArea and appended its own content, leaving two
-  // providers' fields interleaved. Only the latest build renders.
-  let buildGen = 0
-
-  async function buildConfigArea(pDef: typeof PROVIDER_DEFS[0]): Promise<void> {
-    const gen = ++buildGen
-
-    // Load existing saved provider data
-    let existing: any = null
-    try {
-      const config = await invoke<any>('engine_get_config')
-      existing = config?.providers?.find((p: any) => p.id === pDef.id) ?? null
-    } catch { /* no config yet */ }
-    if (gen !== buildGen) return // superseded by a newer tab click
-
-    configArea.innerHTML = ''
-
-    const keyLabel = lbl('API Key')
-    configArea.appendChild(keyLabel)
-    const keyInp = inp()
-    keyInp.type = 'password'
-    keyInp.placeholder = pDef.placeholder
-    if (existing?.api_key) keyInp.value = existing.api_key
-    configArea.appendChild(keyInp)
-
-    const urlLabel = lbl('Base URL')
-    configArea.appendChild(urlLabel)
-    const urlInp = inp()
-    urlInp.value = existing?.base_url || pDef.url
-    urlInp.placeholder = 'https://api.example.com/v1'
-    configArea.appendChild(urlInp)
-
-    if (pDef.id === 'claudecode') {
-      keyLabel.style.display = 'none'; keyInp.style.display = 'none'
-      urlLabel.style.display = 'none'; urlInp.style.display = 'none'
-    }
-
-    configArea.appendChild(lbl('Model'))
-    const modelInp = inp()
-    modelInp.placeholder = 'Type or click a preset below'
-    if (existing?.default_model) modelInp.value = existing.default_model
-    configArea.appendChild(modelInp)
-
-    // Model selection: click to set default, checkboxes to enable in dropdown
-    let existingEnabled: string[] | null = null
-    if (existing?.enabled_models?.length) existingEnabled = existing.enabled_models
-    const enabledSet = new Set<string>(existingEnabled ?? pDef.models)
-    if (pDef.models.length) {
-      configArea.appendChild(lbl('Available Models (check to show in selector, click to set default)'))
-      const presets = document.createElement('div')
-      presets.style.cssText = 'display:flex;flex-direction:column;gap:4px;margin-top:4px'
-      for (const m of pDef.models) {
-        const row = document.createElement('label')
-        row.style.cssText = 'display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--vscode-foreground,#ccc)'
-        const cb = document.createElement('input')
-        cb.type = 'checkbox'
-        cb.checked = enabledSet.has(m)
-        cb.style.cssText = 'accent-color:#ffffff;cursor:pointer'
-        cb.addEventListener('change', () => {
-          if (cb.checked) enabledSet.add(m)
-          else enabledSet.delete(m)
-        })
-        const nameBtn = document.createElement('span')
-        nameBtn.textContent = m
-        nameBtn.style.cssText = 'cursor:pointer;padding:2px 6px;border-radius:8px;transition:background 0.15s'
-        nameBtn.addEventListener('click', () => {
-          modelInp.value = m
-          presets.querySelectorAll('span').forEach(s => { (s as HTMLElement).style.background = 'transparent'; (s as HTMLElement).style.color = 'var(--vscode-foreground,#ccc)' })
-          nameBtn.style.background = '#ffffff'; nameBtn.style.color = '#000'
-        })
-        row.appendChild(cb)
-        row.appendChild(nameBtn)
-        presets.appendChild(row)
-      }
-      configArea.appendChild(presets)
-    }
-
-    const discoverBtn = document.createElement('button')
-    discoverBtn.textContent = 'Discover Models'
-    discoverBtn.style.cssText = 'margin-top:8px;background:transparent;color:var(--vscode-descriptionForeground);border:1px solid var(--vscode-input-border,#3c3c3c);border-radius:4px;padding:5px 10px;font-size:11px;cursor:pointer;width:100%'
-    discoverBtn.addEventListener('click', async () => {
-      discoverBtn.textContent = 'Discovering…'
-      discoverBtn.disabled = true
-      try {
-        await invoke('engine_upsert_provider', {
-          provider: { id: pDef.id, name: pDef.label, kind: pDef.kind, api_key: keyInp.value.trim(), base_url: urlInp.value.trim() }
-        })
-        // The backend returns objects ({ id, name, context_window, max_output }),
-        // not bare strings. Normalise to a string id/label so chips don't render
-        // as "[object Object]".
-        type DiscoveredModel = string | { id?: string; name?: string }
-        const raw = await invoke<DiscoveredModel[]>('engine_list_provider_models', { providerId: pDef.id })
-        const modelIdOf = (m: DiscoveredModel): string =>
-          typeof m === 'string' ? m : (m?.id || m?.name || '')
-        const modelLabelOf = (m: DiscoveredModel): string =>
-          typeof m === 'string' ? m : (m?.name || m?.id || '')
-        const models = raw
-          .map((m) => ({ id: modelIdOf(m), label: modelLabelOf(m) }))
-          .filter((m) => m.id)
-        discoverBtn.textContent = `${models.length} models found`
-
-        const chips = document.createElement('div')
-        chips.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-top:8px'
-        for (const m of models.slice(0, 40)) {
-          const c = document.createElement('button')
-          c.textContent = m.label
-          c.style.cssText = 'background:var(--vscode-input-background,#1e1e1e);color:var(--vscode-input-foreground,#ccc);border:1px solid var(--vscode-input-border,#3c3c3c);border-radius:10px;padding:2px 8px;font-size:10px;cursor:pointer'
-          c.addEventListener('click', () => {
-            modelInp.value = m.id
-            // Ensure the picked model survives Save — without this it would be
-            // set as default but absent from `enabled_models`, hidden from the
-            // model-selector dropdown after save.
-            enabledSet.add(m.id)
-            chips.querySelectorAll('button').forEach(b => { (b as HTMLElement).style.background = 'var(--vscode-input-background,#1e1e1e)'; (b as HTMLElement).style.color = 'var(--vscode-input-foreground,#ccc)' })
-            c.style.background = '#ffffff'
-            c.style.color = '#000'
-          })
-          chips.appendChild(c)
-        }
-        const existing = configArea.querySelector('.model-chips')
-        existing?.remove()
-        chips.classList.add('model-chips')
-        configArea.insertBefore(chips, saveBtn)
-      } catch (e) {
-        // Some providers (Claude Code CLI, Google) don't support live model
-        // listing. That's not a real error — the built-in preset checkboxes
-        // above already cover them — so keep the message soft and re-enable.
-        const msg = String(e)
-        const soft = /unsupported|not support|transport error|list_models/i.test(msg)
-        discoverBtn.textContent = soft
-          ? 'No live list — use the presets above'
-          : `Error: ${msg.slice(0, 60)}`
-        discoverBtn.disabled = false
-      }
-    })
-    configArea.appendChild(discoverBtn)
-
-    const saveBtn = document.createElement('button')
-    saveBtn.textContent = 'Save Provider'
-    saveBtn.style.cssText = 'margin-top:10px;background:#ffffff;color:#000;border:none;border-radius:4px;padding:8px;font-size:12px;font-weight:600;cursor:pointer;width:100%'
-    saveBtn.addEventListener('click', async () => {
-      const key = keyInp.value.trim()
-      const url = urlInp.value.trim()
-      const model = modelInp.value.trim()
-      if (!key && pDef.id !== 'ollama' && pDef.id !== 'claudecode') { saveBtn.textContent = 'Enter an API key'; setTimeout(() => { saveBtn.textContent = 'Save Provider' }, 2000); return }
-      if (!model) { saveBtn.textContent = 'Select or type a model'; setTimeout(() => { saveBtn.textContent = 'Save Provider' }, 2000); return }
-      saveBtn.textContent = 'Saving…'
-      saveBtn.disabled = true
-      try {
-        await invoke('engine_upsert_provider', {
-          provider: { id: pDef.id, name: pDef.label, kind: pDef.kind, api_key: key, base_url: url, default_model: model, enabled_models: Array.from(enabledSet) }
-        })
-        const config = await invoke<any>('engine_get_config')
-        await invoke('engine_set_config', { config: { ...config, default_provider: pDef.id, default_model: model } })
-        S.selectedModel = model
-        S.needsProviderSetup = false
-        // Refresh the top-bar model dropdown so the just-enabled models (and
-        // the new default) appear immediately — previously they only showed
-        // up after an app restart.
-        import('./index.ts').then(({ updateModelSelect }) => updateModelSelect()).catch(() => {})
-        renderMessagesFull()
-        S.textarea?.focus()
-      } catch (e) {
-        saveBtn.textContent = `Error: ${String(e).slice(0, 60)}`
-        saveBtn.disabled = false
-      }
-    })
-    configArea.appendChild(saveBtn)
-  }
-
-  for (const pDef of PROVIDER_DEFS) {
-    const tab = document.createElement('button')
-    tab.textContent = pDef.label
-    tab.style.cssText = `background:${pDef === selectedProvDef ? '#ffffff' : 'var(--vscode-input-background,#1e1e1e)'};color:${pDef === selectedProvDef ? '#000' : 'var(--vscode-foreground)'};border:1px solid var(--vscode-input-border,#3c3c3c);border-radius:4px;padding:3px 8px;font-size:11px;cursor:pointer`
-    tab.addEventListener('click', () => {
-      selectedProvDef = pDef
-      tabs.querySelectorAll('button').forEach(b => { (b as HTMLElement).style.background = 'var(--vscode-input-background,#1e1e1e)'; (b as HTMLElement).style.color = 'var(--vscode-foreground)' })
-      tab.style.background = '#ffffff'; tab.style.color = '#000'
-      buildConfigArea(pDef)
-    })
-    tabs.appendChild(tab)
-  }
-
-  wrap.appendChild(tabs)
-  wrap.appendChild(configArea)
-  buildConfigArea(selectedProvDef)
-  S.msgList.appendChild(wrap)
+  void import('../settings-modal.ts').then(({ openHanzoSettingsModal }) => {
+    openHanzoSettingsModal('models')
+  })
 }

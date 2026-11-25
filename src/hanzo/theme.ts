@@ -1,27 +1,33 @@
 /**
- * Canonical Hanzo Unified Shell Theme, Keybindings & Model Defaults.
+ * Canonical Hanzo IDE — Zen Theme Engine, Geometry, Keybindings & Model Policy.
  *
- * Aligns `Hanzo IDE` (`ai.hanzo.ide`) with `Hanzo Dev` and `Hanzo Team`:
- *   - Pure obsidian dark (`#090909` / `#111114`) & clean alabaster light (`#f8f8fa` / `#ffffff`)
- *   - 240–260px collapsible sidebar (`⌘B`) with 8px pill rows and zero noisy dividers
- *   - Hairline borders (`#222226` dark / `#e4e4e7` light)
- *   - High-contrast monochrome accents (`#ffffff` / `#e4e4e7` dark, `#18181b` light)
- *   - Semantic signals: `#10b981` live, `#f59e0b` warning/approval, `#ef4444` error
- *   - Zen + Qwen3+ model defaults (never Qwen2)
- *   - Unified Hanzo IAM (`hanzo.id`) with `X-Org-Id` multi-tenant routing
+ * Unifies `Hanzo IDE` (`ai.hanzo.ide` v0.2.0) with `Hanzo Dev` (`themePalettes.ts`):
+ *   - `zen` (Default Dark): `#000000` chrome/status, `#090909` editor canvas,
+ *     `#0c0c0c` panels/sidebars, `#0b0b0b` tab strip, `#141414` surfaces/menus,
+ *     `#191919` active tab, `#1b1b1b` hover/pressed, `#222222` 1px borders,
+ *     `#e5e5e5` foreground, `#a0a0a0` muted, restrained Zen syntax colors.
+ *   - `clay` (Dark Clay): `#141418` chrome, `#111016` editor, `#0e0d12` sidebar,
+ *     `#1a1921` surface, `#2c2a38` border, `#d11641` accent.
+ *   - `light` (Zen Light): `#ffffff` chrome/surface, `#fafafa` editor/terminal,
+ *     `#f7f7f7` sidebar, `#efefef` hover, `#e4e4e7` border, `#27272a` ink.
  */
 
 export type HanzoAppearance = 'dark' | 'light'
+export type HanzoThemeId = 'zen' | 'clay' | 'light'
 
 export interface HanzoShellPalette {
-  id: string
+  id: HanzoThemeId
   name: string
   aliases: readonly string[]
   appearance: HanzoAppearance
   baseVsCodeTheme: string
+  chrome: string
+  chromeBorder: string
   floor: string
   rail: string
   sidebar: string
+  tabBar: string
+  tabActive: string
   stage: string
   surfaceRaised: string
   surfaceCard: string
@@ -40,66 +46,126 @@ export interface HanzoShellPalette {
   statusError: string
 }
 
-export const HANZO_OBSIDIAN_PALETTE: HanzoShellPalette = {
-  id: 'hanzo-obsidian',
-  name: 'Hanzo Dark',
-  aliases: ['Hanzo Dark', 'Hanzo Obsidian'],
+/** Default Zen Dark workspace palette (matches `hanzo-ide.html` + `ZEN_THEME.variants.dark`). */
+export const HANZO_ZEN_PALETTE: HanzoShellPalette = {
+  id: 'zen',
+  name: 'Zen',
+  aliases: ['Zen', 'Hanzo Dark', 'Hanzo Obsidian'],
   appearance: 'dark',
   baseVsCodeTheme: 'Default Dark Modern',
-  floor: '#090909',
-  rail: '#090909',
+  chrome: '#000000',
+  chromeBorder: '#171717',
+  floor: '#000000',
+  rail: '#0c0c0c',
   sidebar: '#0c0c0c',
-  stage: '#111114',
-  surfaceRaised: '#16161a',
-  surfaceCard: '#141417',
-  border: '#222226',
-  borderSubtle: '#ffffff0f',
-  rowHover: '#ffffff0d',
-  rowActive: '#ffffff17',
-  inkPrimary: '#fafafa',
-  inkSecondary: '#a1a1aa',
-  inkMuted: '#71717a',
-  accent: '#ffffff',
-  accentPill: '#e4e4e7',
-  accentInk: '#09090b',
-  statusLive: '#10b981',
-  statusWarning: '#f59e0b',
-  statusError: '#ef4444',
+  tabBar: '#0b0b0b',
+  tabActive: '#191919',
+  stage: '#090909',
+  surfaceRaised: '#141414',
+  surfaceCard: '#141414',
+  border: '#222222',
+  borderSubtle: '#1b1b1b',
+  rowHover: '#1b1b1b',
+  rowActive: '#1c1c1c',
+  inkPrimary: '#e5e5e5',
+  inkSecondary: '#a0a0a0',
+  inkMuted: '#777777',
+  accent: '#e5e5e5',
+  accentPill: '#242424',
+  accentInk: '#111111',
+  statusLive: '#82a681',
+  statusWarning: '#fe9a00',
+  statusError: '#fb414a',
 }
 
-export const HANZO_LIGHT_PALETTE: HanzoShellPalette = {
-  id: 'hanzo-light',
-  name: 'Hanzo Light',
-  aliases: ['Hanzo Light', 'Hanzo Alabaster'],
-  appearance: 'light',
-  baseVsCodeTheme: 'Default Light Modern',
-  floor: '#f8f8fa',
-  rail: '#f8f8fa',
-  sidebar: '#f4f4f6',
-  stage: '#ffffff',
-  surfaceRaised: '#ffffff',
-  surfaceCard: '#f4f4f5',
-  border: '#e4e4e7',
-  borderSubtle: '#0000000f',
-  rowHover: '#0000000a',
-  rowActive: '#00000012',
-  inkPrimary: '#18181b',
-  inkSecondary: '#52525b',
-  inkMuted: '#71717a',
-  accent: '#18181b',
-  accentPill: '#27272a',
+/** Clay Dark workspace palette (matches `CLAY_THEME.variants.dark` in `Hanzo Dev`). */
+export const HANZO_CLAY_PALETTE: HanzoShellPalette = {
+  id: 'clay',
+  name: 'Clay',
+  aliases: ['Clay', 'Hanzo Clay'],
+  appearance: 'dark',
+  baseVsCodeTheme: 'Default Dark Modern',
+  chrome: '#141418',
+  chromeBorder: '#282633',
+  floor: '#141418',
+  rail: '#0e0d12',
+  sidebar: '#0e0d12',
+  tabBar: '#121117',
+  tabActive: '#23212c',
+  stage: '#111016',
+  surfaceRaised: '#23212c',
+  surfaceCard: '#1a1921',
+  border: '#2c2a38',
+  borderSubtle: '#24222f',
+  rowHover: '#1f1d28',
+  rowActive: '#252230',
+  inkPrimary: '#f4f2f8',
+  inkSecondary: '#9b96ab',
+  inkMuted: '#8c869e',
+  accent: '#d11641',
+  accentPill: '#262430',
   accentInk: '#ffffff',
   statusLive: '#10b981',
-  statusWarning: '#f59e0b',
-  statusError: '#ef4444',
+  statusWarning: '#fe9a00',
+  statusError: '#fb414a',
+}
+
+/** Zen Light workspace palette (matches `ZEN_THEME.colors` in `Hanzo Dev`). */
+export const HANZO_LIGHT_PALETTE: HanzoShellPalette = {
+  id: 'light',
+  name: 'Zen Light',
+  aliases: ['Zen Light', 'Hanzo Light', 'Hanzo Alabaster'],
+  appearance: 'light',
+  baseVsCodeTheme: 'Default Light Modern',
+  chrome: '#ffffff',
+  chromeBorder: '#e4e4e7',
+  floor: '#ffffff',
+  rail: '#f7f7f7',
+  sidebar: '#f7f7f7',
+  tabBar: '#fafafa',
+  tabActive: '#eaeaea',
+  stage: '#ffffff',
+  surfaceRaised: '#ffffff',
+  surfaceCard: '#fafafa',
+  border: '#e4e4e7',
+  borderSubtle: '#ececef',
+  rowHover: '#efefef',
+  rowActive: '#eaeaea',
+  inkPrimary: '#27272a',
+  inkSecondary: '#71717b',
+  inkMuted: '#8e8e98',
+  accent: '#18181b',
+  accentPill: '#f4f4f5',
+  accentInk: '#ffffff',
+  statusLive: '#16a34a',
+  statusWarning: '#d97706',
+  statusError: '#dc2626',
+}
+
+/** Backwards-compatible alias for `HANZO_ZEN_PALETTE`. */
+export const HANZO_OBSIDIAN_PALETTE: HanzoShellPalette = HANZO_ZEN_PALETTE
+
+export const HANZO_THEMES: readonly HanzoShellPalette[] = [
+  HANZO_ZEN_PALETTE,
+  HANZO_CLAY_PALETTE,
+  HANZO_LIGHT_PALETTE,
+] as const
+
+export function getPaletteById(themeId: HanzoThemeId | string): HanzoShellPalette {
+  if (themeId === 'clay') return HANZO_CLAY_PALETTE
+  if (themeId === 'light') return HANZO_LIGHT_PALETTE
+  return HANZO_ZEN_PALETTE
 }
 
 export const HANZO_SHELL_GEOMETRY = {
   titlebarHeightPx: 40,
   sidebarDefaultWidthPx: 248,
-  sidebarMinWidthPx: 240,
-  sidebarMaxWidthPx: 260,
-  pillRowRadiusPx: 8,
+  sidebarMinWidthPx: 185,
+  sidebarMaxWidthPx: 420,
+  rightSidebarDefaultWidthPx: 340,
+  bottomPanelDefaultHeightPx: 210,
+  statusBarHeightPx: 23,
+  pillRowRadiusPx: 6,
   trafficLightsInsetPx: 78,
 } as const
 
@@ -117,14 +183,14 @@ export const HANZO_DEFAULT_KEYBINDINGS: readonly HanzoShortcutSpec[] = [
     mac: '⌘B',
     winLinux: 'Ctrl+B',
     command: 'workbench.action.toggleSidebarVisibility',
-    label: 'Toggle Sidebar',
+    label: 'Toggle Left Sidebar',
   },
   {
     id: 'palette.open',
     mac: '⌘K',
     winLinux: 'Ctrl+K',
     command: 'hanzo.commandOrInlineEdit',
-    label: 'Command Palette / Inline Edit',
+    label: 'Search or Run a Command',
   },
   {
     id: 'commands.all',
@@ -132,6 +198,13 @@ export const HANZO_DEFAULT_KEYBINDINGS: readonly HanzoShortcutSpec[] = [
     winLinux: 'Ctrl+Shift+P',
     command: 'workbench.action.showCommands',
     label: 'Show All Commands',
+  },
+  {
+    id: 'terminal.toggle',
+    mac: '⌃`',
+    winLinux: 'Ctrl+`',
+    command: 'workbench.action.terminal.toggleTerminal',
+    label: 'Toggle Terminal',
   },
   {
     id: 'settings.open',
@@ -145,16 +218,17 @@ export const HANZO_DEFAULT_KEYBINDINGS: readonly HanzoShortcutSpec[] = [
     mac: '⌥⌘B',
     winLinux: 'Ctrl+Alt+B',
     command: 'workbench.action.toggleAuxiliaryBar',
-    label: 'Toggle Hanzo Agent Panel',
+    label: 'Toggle AI Sidebar',
   },
 ] as const
 
 export const HANZO_ZEN_MODEL_PRESETS = [
-  'zen6',
   'zen6-coder',
+  'zen6',
   'zen6-flash',
   'zen6-max',
-  'zen6-free',
+  'enso-auto',
+  'enso-pro',
   'zen-vl',
 ] as const
 
@@ -168,7 +242,7 @@ export const HANZO_OLLAMA_MODEL_PRESETS = [
   'llama3.2',
 ] as const
 
-/** Enforce the Zen 6 / Qwen3+ policy: Zen 6+ (or evergreen `zen*`) + Qwen3+ only, never Qwen2 or legacy zen1..zen5. */
+/** Enforce the Zen 6 / Qwen3+ policy: Zen 6+ (or evergreen `zen*` / `enso*`) + Qwen3+ only, never Qwen2 or legacy zen1..zen5. */
 export function isAllowedModelId(modelId: string): boolean {
   const lower = modelId.trim().toLowerCase()
   if (!lower) return false
@@ -184,6 +258,7 @@ export const HANZO_IAM_DEFAULTS = {
   orgHeader: 'X-Org-Id',
   orgStorageKey: 'hanzo.console.org',
   themeStorageKey: 'hanzo.ide.appearance',
+  themeIdStorageKey: 'hanzo.ide.themeId',
 } as const
 
 export function buildPaletteColorMap(p: HanzoShellPalette): Record<string, string> {
@@ -195,44 +270,55 @@ export function buildPaletteColorMap(p: HanzoShellPalette): Record<string, strin
     'activityBar.inactiveForeground': p.inkMuted,
     'activityBarBadge.background': p.accent,
     'activityBarBadge.foreground': p.accentInk,
-    'statusBar.background': p.floor,
-    'statusBar.foreground': p.inkSecondary,
-    'statusBar.noFolderBackground': p.floor,
+    'statusBar.background': p.chrome,
+    'statusBar.foreground': isDark ? '#888888' : p.inkSecondary,
+    'statusBar.noFolderBackground': p.chrome,
     'statusBar.debuggingBackground': p.surfaceCard,
     'statusBar.debuggingForeground': p.inkPrimary,
     'sideBar.background': p.sidebar,
     'sideBar.foreground': p.inkPrimary,
     'sideBarSectionHeader.background': p.sidebar,
-    'sideBarSectionHeader.foreground': p.inkMuted,
+    'sideBarSectionHeader.foreground': p.inkSecondary,
     'sideBarTitle.foreground': p.inkPrimary,
     'editor.background': p.stage,
-    'editor.foreground': p.inkPrimary,
-    'editorLineNumber.foreground': p.inkMuted,
+    'editor.foreground': isDark ? '#d5d5d5' : p.inkPrimary,
+    'editorLineNumber.foreground': isDark ? '#666666' : p.inkMuted,
     'editorLineNumber.activeForeground': p.inkSecondary,
-    'editorCursor.foreground': p.accent,
-    'editorGroupHeader.tabsBackground': p.floor,
-    'tab.activeBackground': p.stage,
-    'tab.inactiveBackground': p.floor,
+    'editorCursor.foreground': isDark ? '#eeeeee' : p.accent,
+    'editor.lineHighlightBackground': isDark ? '#11111180' : '#00000006',
+    'editor.selectionBackground': isDark ? '#ffffff1f' : '#18181b1f',
+    'editorGroupHeader.tabsBackground': p.tabBar,
+    'editorGroupHeader.noTabsBackground': p.stage,
+    'tab.activeBackground': p.tabActive,
+    'tab.inactiveBackground': p.tabBar,
     'tab.activeForeground': p.inkPrimary,
-    'tab.inactiveForeground': p.inkMuted,
-    'tab.activeBorderTop': p.border,
-    'panel.background': p.stage,
-    'panelTitle.activeBorder': p.accent,
-    'panelTitle.activeForeground': p.inkPrimary,
-    'panelTitle.inactiveForeground': p.inkMuted,
-    'titleBar.activeBackground': p.floor,
+    'tab.inactiveForeground': isDark ? '#8d8d8d' : p.inkMuted,
+    'tab.hoverBackground': p.rowHover,
+    'tab.activeBorderTop': '#00000000',
+    'breadcrumb.background': p.stage,
+    'breadcrumb.foreground': isDark ? '#818181' : p.inkMuted,
+    'breadcrumb.focusForeground': p.inkPrimary,
+    'breadcrumb.activeSelectionForeground': p.inkPrimary,
+    'panel.background': p.sidebar,
+    'panelTitle.activeBorder': '#00000000',
+    'panelTitle.activeForeground': isDark ? '#dddddd' : p.inkPrimary,
+    'panelTitle.inactiveForeground': isDark ? '#888888' : p.inkMuted,
+    'terminal.background': p.sidebar,
+    'terminal.foreground': isDark ? '#bcbcbc' : p.inkPrimary,
+    'terminalCursor.foreground': p.accent,
+    'titleBar.activeBackground': p.chrome,
     'titleBar.activeForeground': p.inkPrimary,
-    'titleBar.inactiveBackground': p.floor,
+    'titleBar.inactiveBackground': p.chrome,
     'titleBar.inactiveForeground': p.inkMuted,
-    'commandCenter.background': p.surfaceCard,
+    'commandCenter.background': isDark ? '#111111' : p.surfaceCard,
     'commandCenter.activeBackground': p.rowHover,
-    'commandCenter.foreground': p.inkSecondary,
+    'commandCenter.foreground': isDark ? '#8d8d8d' : p.inkSecondary,
     'commandCenter.activeForeground': p.inkPrimary,
     'commandCenter.border': p.border,
     'button.background': p.accent,
     'button.foreground': p.accentInk,
     'button.border': '#00000000',
-    'button.hoverBackground': p.accentPill,
+    'button.hoverBackground': isDark ? '#ffffff' : '#27272a',
     'button.secondaryBackground': p.surfaceCard,
     'button.secondaryForeground': p.inkPrimary,
     'button.secondaryHoverBackground': p.rowHover,
@@ -243,19 +329,19 @@ export function buildPaletteColorMap(p: HanzoShellPalette): Record<string, strin
     'dropdown.background': p.surfaceRaised,
     'dropdown.foreground': p.inkPrimary,
     'dropdown.border': p.border,
-    'quickInput.background': p.surfaceRaised,
+    'quickInput.background': isDark ? '#141414' : p.surfaceRaised,
     'quickInput.foreground': p.inkPrimary,
-    'quickInputList.focusBackground': p.rowActive,
+    'quickInputList.focusBackground': p.rowHover,
     'quickInputList.focusForeground': p.inkPrimary,
     'list.activeSelectionBackground': p.rowActive,
     'list.activeSelectionForeground': p.inkPrimary,
-    'list.inactiveSelectionBackground': p.rowHover,
+    'list.inactiveSelectionBackground': p.rowActive,
     'list.focusBackground': p.rowActive,
     'list.hoverBackground': p.rowHover,
-    'list.highlightForeground': p.accent,
+    'list.highlightForeground': p.inkPrimary,
     'progressBar.background': p.accent,
     'badge.background': p.accentPill,
-    'badge.foreground': p.accentInk,
+    'badge.foreground': p.inkPrimary,
     'textLink.foreground': p.inkPrimary,
     'textLink.activeForeground': p.accent,
     'errorForeground': p.statusError,
@@ -263,41 +349,51 @@ export function buildPaletteColorMap(p: HanzoShellPalette): Record<string, strin
     'editorWarning.foreground': p.statusWarning,
     'testing.iconPassed': p.statusLive,
     'testing.iconFailed': p.statusError,
-    // Zero noisy structural seams: surface value separates panes.
     'contrastBorder': '#00000000',
     'contrastActiveBorder': '#00000000',
-    'sash.hoverBorder': p.border,
-    'focusBorder': p.border,
-    'activityBar.border': '#00000000',
-    'sideBar.border': '#00000000',
+    'sash.hoverBorder': isDark ? '#858585' : '#a1a1aa',
+    'focusBorder': isDark ? '#3a3a3a' : '#d4d4d8',
+    'activityBar.border': p.border,
+    'sideBar.border': p.border,
     'sideBarSectionHeader.border': '#00000000',
-    'statusBar.border': '#00000000',
-    'titleBar.border': '#00000000',
-    'panel.border': '#00000000',
-    'editorGroup.border': '#00000000',
-    'editorGroupHeader.tabsBorder': '#00000000',
+    'statusBar.border': p.borderSubtle,
+    'titleBar.border': p.chromeBorder,
+    'panel.border': p.border,
+    'editorGroup.border': p.border,
+    'editorGroupHeader.tabsBorder': '#1c1c1c',
     'editorGroupHeader.border': '#00000000',
     'tab.border': '#00000000',
-    'menu.background': p.surfaceRaised,
+    'menu.background': isDark ? '#141414' : p.surfaceRaised,
     'menu.foreground': p.inkPrimary,
-    'menu.selectionBackground': p.rowActive,
+    'menu.selectionBackground': p.rowHover,
     'menu.selectionForeground': p.inkPrimary,
-    'menu.border': p.border,
+    'menu.border': isDark ? '#2a2a2a' : p.border,
     'widget.border': p.border,
-    // Neutral monochrome git tree decorations (badge letter carries state).
-    'gitDecoration.modifiedResourceForeground': isDark ? '#e4e4e7' : '#27272a',
-    'gitDecoration.untrackedResourceForeground': isDark ? '#a1a1aa' : '#52525b',
-    'gitDecoration.ignoredResourceForeground': isDark ? '#52525b' : '#a1a1aa',
-    'gitDecoration.deletedResourceForeground': isDark ? '#71717a' : '#71717a',
-    'gitDecoration.renamedResourceForeground': isDark ? '#a1a1aa' : '#52525b',
-    'gitDecoration.stageModifiedResourceForeground': isDark ? '#fafafa' : '#18181b',
+    'notifications.background': p.surfaceRaised,
+    'notifications.border': p.border,
+    'gitDecoration.modifiedResourceForeground': isDark ? '#d8d8d8' : '#27272a',
+    'gitDecoration.untrackedResourceForeground': isDark ? '#a8c3a5' : '#16a34a',
+    'gitDecoration.ignoredResourceForeground': isDark ? '#555555' : '#a1a1aa',
+    'gitDecoration.deletedResourceForeground': isDark ? '#888888' : '#71717a',
+    'gitDecoration.renamedResourceForeground': isDark ? '#a0a0a0' : '#52525b',
+    'gitDecoration.stageModifiedResourceForeground': isDark ? '#e5e5e5' : '#18181b',
     'gitDecoration.conflictingResourceForeground': p.statusWarning,
   }
 }
 
-export function buildWorkbenchColorCustomizations(appearance: HanzoAppearance = 'dark'): Record<string, unknown> {
-  const active = appearance === 'light' ? HANZO_LIGHT_PALETTE : HANZO_OBSIDIAN_PALETTE
-  const darkColors = buildPaletteColorMap(HANZO_OBSIDIAN_PALETTE)
+export function buildWorkbenchColorCustomizations(
+  themeOrAppearance: HanzoThemeId | HanzoAppearance = 'zen',
+): Record<string, unknown> {
+  const themeId: HanzoThemeId =
+    themeOrAppearance === 'dark'
+      ? 'zen'
+      : themeOrAppearance === 'clay'
+        ? 'clay'
+        : themeOrAppearance === 'light'
+          ? 'light'
+          : 'zen'
+  const active = getPaletteById(themeId)
+  const darkColors = buildPaletteColorMap(themeId === 'clay' ? HANZO_CLAY_PALETTE : HANZO_ZEN_PALETTE)
   const lightColors = buildPaletteColorMap(HANZO_LIGHT_PALETTE)
   return {
     ...buildPaletteColorMap(active),
@@ -308,50 +404,158 @@ export function buildWorkbenchColorCustomizations(appearance: HanzoAppearance = 
   }
 }
 
+/** Restrained Zen syntax colors matching `hanzo-ide.html` & `uploaded_media_1795581530518.png`. */
+export function buildZenTokenColorCustomizations(): Record<string, unknown> {
+  const zenRules = {
+    comments: '#777777',
+    strings: '#a8be9e',
+    keywords: '#b9a6d2',
+    functions: '#c5b68f',
+    types: '#a5bacb',
+    numbers: '#c5b68f',
+    variables: '#d5d5d5',
+    textMateRules: [
+      {
+        scope: [
+          'keyword',
+          'keyword.control',
+          'storage.type',
+          'storage.modifier',
+          'keyword.operator.expression',
+          'keyword.operator.new',
+        ],
+        settings: { foreground: '#b9a6d2' },
+      },
+      {
+        scope: ['string', 'string.quoted', 'string.template'],
+        settings: { foreground: '#a8be9e' },
+      },
+      {
+        scope: ['comment', 'punctuation.definition.comment'],
+        settings: { foreground: '#777777' },
+      },
+      {
+        scope: ['entity.name.function', 'support.function', 'meta.function-call.generic'],
+        settings: { foreground: '#c5b68f' },
+      },
+      {
+        scope: ['entity.name.type', 'entity.name.class', 'support.type', 'support.class'],
+        settings: { foreground: '#a5bacb' },
+      },
+      {
+        scope: ['variable', 'variable.other.readwrite', 'variable.other.constant', 'punctuation'],
+        settings: { foreground: '#d5d5d5' },
+      },
+    ],
+  }
+  return {
+    '[Default Dark Modern]': zenRules,
+    '[Default Dark+]': zenRules,
+  }
+}
+
 export function buildWorkbenchConfigurationDefaults(): Record<string, unknown> {
   return {
-    'workbench.colorTheme': HANZO_OBSIDIAN_PALETTE.baseVsCodeTheme,
-    'workbench.preferredDarkColorTheme': HANZO_OBSIDIAN_PALETTE.baseVsCodeTheme,
+    'workbench.colorTheme': HANZO_ZEN_PALETTE.baseVsCodeTheme,
+    'workbench.preferredDarkColorTheme': HANZO_ZEN_PALETTE.baseVsCodeTheme,
     'workbench.preferredLightColorTheme': HANZO_LIGHT_PALETTE.baseVsCodeTheme,
-    'editor.fontFamily': "'Zen Mono', 'SF Mono', ui-monospace, monospace",
-    'terminal.integrated.fontFamily': "'Zen Mono', 'SF Mono', ui-monospace, monospace",
-    'debug.console.fontFamily': "'Zen Mono', 'SF Mono', ui-monospace, monospace",
-    'chat.editor.fontFamily': "'Zen Mono', 'SF Mono', ui-monospace, monospace",
+    'editor.tokenColorCustomizations': buildZenTokenColorCustomizations(),
+    'editor.fontFamily': "'Zen Mono', monospace",
+    'terminal.integrated.fontFamily': "'Zen Mono', monospace",
+    'debug.console.fontFamily': "'Zen Mono', monospace",
+    'chat.editor.fontFamily': "'Zen Mono', monospace",
     'editor.fontSize': 13,
-    'editor.lineHeight': 1.55,
+    'editor.lineHeight': 23,
     'editor.tabSize': 2,
-    'editor.renderWhitespace': 'selection',
+    'editor.renderWhitespace': 'none',
+    'editor.renderLineHighlight': 'none',
+    'editor.guides.indentation': false,
     'editor.minimap.enabled': false,
+    'editor.overviewRulerBorder': false,
+    'editor.hideCursorInOverviewRuler': true,
+    'editor.scrollbar.vertical': 'auto',
+    'editor.scrollbar.horizontal': 'auto',
+    'editor.scrollbar.verticalScrollbarSize': 6,
+    'editor.scrollbar.horizontalScrollbarSize': 6,
+    'breadcrumbs.enabled': true,
     'workbench.startupEditor': 'none',
+    'workbench.editor.showTabs': 'multiple',
+    'workbench.editor.editorActionsLocation': 'hidden',
     'window.menuBarVisibility': 'hidden',
-    'window.commandCenter': true,
-    'workbench.activityBar.location': 'default',
-    'workbench.quickOpen.closeOnFocusLost': false,
+    'window.enableMenuBarMnemonics': false,
+    'window.commandCenter': false,
+    'workbench.layoutControl.enabled': false,
+    'workbench.activityBar.location': 'hidden',
+    'workbench.quickOpen.closeOnFocusLost': true,
     'prettier.enable': true,
-    'workbench.iconTheme': 'vs-seti',
+    'workbench.iconTheme': 'vs-minimal',
     'explorer.compactFolders': true,
+    'explorer.openEditors.visible': 0,
+    'terminal.integrated.fontSize': 12,
+    'terminal.integrated.lineHeight': 1.45,
+  }
+}
+
+export function readStoredThemeId(): HanzoThemeId {
+  try {
+    if (typeof localStorage === 'undefined') return 'zen'
+    const id = localStorage.getItem(HANZO_IAM_DEFAULTS.themeIdStorageKey)
+    if (id === 'clay' || id === 'light' || id === 'zen') return id
+    const legacy = localStorage.getItem(HANZO_IAM_DEFAULTS.themeStorageKey)
+    if (legacy === 'light') return 'light'
+    return 'zen'
+  } catch {
+    return 'zen'
   }
 }
 
 export function readStoredAppearance(): HanzoAppearance {
-  try {
-    if (typeof localStorage === 'undefined') return 'dark'
-    const v = localStorage.getItem(HANZO_IAM_DEFAULTS.themeStorageKey)
-    return v === 'light' ? 'light' : 'dark'
-  } catch {
-    return 'dark'
-  }
+  return readStoredThemeId() === 'light' ? 'light' : 'dark'
 }
 
-export function applyDocumentAppearance(appearance: HanzoAppearance): void {
+export type HanzoDesktopPlatform = 'macos' | 'windows' | 'linux'
+
+export function detectDesktopPlatform(): HanzoDesktopPlatform {
+  if (typeof navigator === 'undefined') return 'linux'
+  const ua = `${navigator.platform || ''} ${navigator.userAgent || ''}`
+  if (/Mac|Darwin/i.test(ua)) return 'macos'
+  if (/Win/i.test(ua)) return 'windows'
+  return 'linux'
+}
+
+export function isMacDesktopPlatform(): boolean {
+  return detectDesktopPlatform() === 'macos'
+}
+
+export function applyDocumentAppearance(themeOrAppearance: HanzoThemeId | HanzoAppearance): void {
+  const themeId: HanzoThemeId =
+    themeOrAppearance === 'dark'
+      ? 'zen'
+      : themeOrAppearance === 'clay'
+        ? 'clay'
+        : themeOrAppearance === 'light'
+          ? 'light'
+          : 'zen'
+  const appearance: HanzoAppearance = themeId === 'light' ? 'light' : 'dark'
   if (typeof document !== 'undefined') {
+    const platform = detectDesktopPlatform()
     document.documentElement.dataset.hanzoTheme = appearance
+    document.documentElement.dataset.hanzoThemeId = themeId
+    document.documentElement.dataset.hanzoPlatform = platform
     document.documentElement.classList.toggle('light', appearance === 'light')
     document.documentElement.classList.toggle('dark', appearance === 'dark')
+    // W3C-safe Linux outer window corners: never allow inline root/body background colors.
+    if (platform === 'linux') {
+      document.documentElement.style.removeProperty('background')
+      document.documentElement.style.removeProperty('background-color')
+      document.body?.style.removeProperty('background')
+      document.body?.style.removeProperty('background-color')
+    }
   }
   try {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(HANZO_IAM_DEFAULTS.themeStorageKey, appearance)
+      localStorage.setItem(HANZO_IAM_DEFAULTS.themeIdStorageKey, themeId)
     }
   } catch {
     /* ignore storage restrictions */

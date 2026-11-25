@@ -211,6 +211,17 @@ pub struct McpServerStatus {
     pub tool_count: usize,
 }
 
+/// Flattened runtime descriptor for a single live MCP tool.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct McpServerToolInfo {
+    pub server_id: String,
+    pub server_name: String,
+    pub name: String,
+    pub prefixed_name: String,
+    pub description: String,
+    pub input_schema: serde_json::Value,
+}
+
 // ── Tests ──────────────────────────────────────────────────────────────
 
 #[cfg(test)]

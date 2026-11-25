@@ -147,12 +147,19 @@ pub async fn dap_start(
 
     let cwd = request.cwd.unwrap_or_else(|| "/tmp".to_string());
 
-    let mut child = Command::new(&cmd)
+    let mut proc_cmd = Command::new(&cmd);
+    proc_cmd
         .args(&args)
         .current_dir(&cwd)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        proc_cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    let mut child = proc_cmd
         .spawn()
         .map_err(|e| format!("Failed to spawn debug adapter '{}': {e}", cmd))?;
 

@@ -203,14 +203,36 @@ pub async fn ide_delete_file(path: String, recursive: Option<bool>) -> Result<()
 }
 
 #[tauri::command]
+pub async fn ide_mkdir(path: String) -> Result<(), String> {
+    tokio::fs::create_dir_all(&path)
+        .await
+        .map_err(|e| format!("Mkdir failed: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn ide_rename_file(
+    from_path: String,
+    to_path: String,
+    overwrite: Option<bool>,
+) -> Result<(), String> {
+    if !overwrite.unwrap_or(false) && Path::new(&to_path).exists() {
+        return Err(format!("Already exists: {to_path}"));
+    }
+    if let Some(parent) = Path::new(&to_path).parent() {
+        let _ = tokio::fs::create_dir_all(parent).await;
+    }
+    tokio::fs::rename(&from_path, &to_path)
+        .await
+        .map_err(|e| format!("Rename failed: {e}"))?;
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn ide_list_dir(
     path: String,
     include_hidden: Option<bool>,
 ) -> Result<DirectoryListing, String> {
-    // Agent tools hide dotfiles by default (cleaner listings); the extension
-    // host's vscode.workspace.fs.readDirectory passes include_hidden=true
-    // because its contract is to return EVERY entry (.gitignore, .env,
-    // .vscode, …).
     let show_hidden = include_hidden.unwrap_or(false);
     let mut entries = Vec::new();
     let mut dir = tokio::fs::read_dir(&path)
@@ -226,7 +248,11 @@ pub async fn ide_list_dir(
         if !show_hidden && name.starts_with('.') {
             continue;
         }
-        let meta = entry.metadata().await.ok();
+        // Follow symlinks via tokio::fs::metadata so symlinked directories expand in Explorer.
+        let meta = match tokio::fs::metadata(entry.path()).await {
+            Ok(m) => Some(m),
+            Err(_) => entry.metadata().await.ok(),
+        };
         entries.push(DirectoryEntry {
             name,
             is_dir: meta.as_ref().map_or(false, |m| m.is_dir()),
@@ -247,13 +273,82 @@ pub async fn ide_run_command(
     cwd: Option<String>,
 ) -> Result<CommandResult, String> {
     let cwd = cwd.unwrap_or_else(|| {
-        std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string())
+        dirs::home_dir()
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| {
+                if cfg!(target_os = "windows") {
+                    "C:\\".to_string()
+                } else {
+                    "/tmp".to_string()
+                }
+            })
     });
 
-    let output = tokio::process::Command::new("zsh")
-        .arg("-l")
-        .arg("-c")
-        .arg(&command)
+    #[cfg(target_os = "windows")]
+    let mut proc_cmd = {
+        let active_wsl_distro = std::env::var("HANZO_WSL_DISTRO")
+            .ok()
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty());
+        let use_wsl = active_wsl_distro.is_some()
+            || (std::env::var("HANZO_WINDOWS_SHELL")
+                .map(|v| {
+                    let s = v.trim().to_ascii_lowercase();
+                    s == "wsl" || s == "wsl.exe"
+                })
+                .unwrap_or(false)
+                && which::which("wsl.exe").is_ok());
+        let mut c = if let Some(distro) = active_wsl_distro {
+            let mut c = tokio::process::Command::new("wsl.exe");
+            c.args(["-d", &distro, "--", "bash", "-lc", &command]);
+            c
+        } else if use_wsl {
+            let mut c = tokio::process::Command::new("wsl.exe");
+            c.args(["-e", "bash", "-lc", &command]);
+            c
+        } else if which::which("pwsh.exe").is_ok() {
+            let mut c = tokio::process::Command::new("pwsh.exe");
+            c.args(["-NoProfile", "-NonInteractive", "-Command", &command]);
+            c
+        } else if which::which("powershell.exe").is_ok() {
+            let mut c = tokio::process::Command::new("powershell.exe");
+            c.args(["-NoProfile", "-NonInteractive", "-Command", &command]);
+            c
+        } else if which::which("wsl.exe").is_ok() {
+            let mut c = tokio::process::Command::new("wsl.exe");
+            c.args(["-e", "bash", "-lc", &command]);
+            c
+        } else {
+            let mut c = tokio::process::Command::new("cmd.exe");
+            c.args(["/C", &command]);
+            c
+        };
+        c.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        c
+    };
+
+    #[cfg(not(target_os = "windows"))]
+    let mut proc_cmd = {
+        let sh = std::env::var("SHELL")
+            .ok()
+            .filter(|s| !s.trim().is_empty() && Path::new(s).exists())
+            .or_else(|| {
+                ["/bin/zsh", "/bin/bash", "/bin/sh"]
+                    .into_iter()
+                    .find(|p| Path::new(p).exists())
+                    .map(str::to_string)
+            })
+            .unwrap_or_else(|| "/bin/sh".to_string());
+        let mut c = tokio::process::Command::new(&sh);
+        if sh.ends_with("zsh") || sh.ends_with("bash") {
+            c.args(["-lc", &command]);
+        } else {
+            c.args(["-c", &command]);
+        }
+        c
+    };
+
+    let output = proc_cmd
         .current_dir(&cwd)
         .output()
         .await
@@ -283,31 +378,58 @@ pub async fn open_external(url: String) -> Result<(), String> {
     }
 
     #[cfg(target_os = "macos")]
-    let mut cmd = {
-        let mut c = tokio::process::Command::new("open");
-        c.arg(trimmed);
-        c
-    };
+    {
+        tokio::process::Command::new("open")
+            .arg(trimmed)
+            .status()
+            .await
+            .map_err(|e| format!("open_external failed: {e}"))?;
+        return Ok(());
+    }
     #[cfg(target_os = "linux")]
-    let mut cmd = {
-        let mut c = tokio::process::Command::new("xdg-open");
-        c.arg(trimmed);
-        c
-    };
+    {
+        let is_wsl = std::env::var_os("WSL_DISTRO_NAME").is_some()
+            || std::env::var_os("WSL_INTEROP").is_some();
+        if let Ok(st) = tokio::process::Command::new("xdg-open")
+            .arg(trimmed)
+            .status()
+            .await
+        {
+            if st.success() {
+                return Ok(());
+            }
+        }
+        if is_wsl {
+            if let Ok(st) = tokio::process::Command::new("wslview")
+                .arg(trimmed)
+                .status()
+                .await
+            {
+                if st.success() {
+                    return Ok(());
+                }
+            }
+            let st = tokio::process::Command::new("cmd.exe")
+                .args(["/C", "start", "", trimmed])
+                .status()
+                .await
+                .map_err(|e| format!("WSL host browser launch failed: {e}"))?;
+            if st.success() {
+                return Ok(());
+            }
+        }
+        return Err(format!("open_external failed to open URL: {trimmed}"));
+    }
     #[cfg(target_os = "windows")]
-    let mut cmd = {
-        // `start` takes a quoted title arg first; the URL is a separate argv
-        // entry, not concatenated into a command string.
+    {
         let mut c = tokio::process::Command::new("cmd");
         c.args(["/C", "start", "", trimmed]);
-        c
-    };
-
-    // The launcher exits immediately after handing off; await + reap it.
-    cmd.status()
-        .await
-        .map_err(|e| format!("open_external failed: {e}"))?;
-    Ok(())
+        c.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+        c.status()
+            .await
+            .map_err(|e| format!("open_external failed: {e}"))?;
+        return Ok(());
+    }
 }
 
 // ─── Git Tools (delegates to git.rs) ─────────────────────────────────────────

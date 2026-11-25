@@ -1,10 +1,4 @@
-// Hanzo Engine — MCP Transports (Stdio + SSE)
-//
-// Two transport implementations for the MCP JSON-RPC interface:
-//   - StdioTransport: spawns a child process, Content-Length framed stdin/stdout
-//   - SseTransport: connects to an HTTP SSE endpoint (MCP Streamable HTTP)
-//
-// Both are wrapped by McpTransportHandle for unified API.
+// Hanzo Engine — MCP Transports (Stdio newline-delimited JSON-RPC + SSE + Streamable HTTP)
 
 use super::types::{JsonRpcRequest, JsonRpcResponse};
 use crate::engine::util::safe_truncate;
@@ -80,14 +74,9 @@ impl StdioTransport {
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
-            // SIGKILL the MCP server if this Child handle ever drops
-            // without an explicit shutdown(). tokio defaults this to
-            // false, so any early-return drop path (e.g. the stdin/
-            // stdout/stderr .take() failing below, or the owning
-            // transport being dropped on error) would otherwise orphan
-            // a heavyweight node/python MCP server process. With this,
-            // the OS reaps it when the handle goes away.
             .kill_on_drop(true);
+        #[cfg(target_os = "windows")]
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
 
         // Merge extra env vars (credentials, etc.)
         for (k, v) in env {
@@ -105,19 +94,17 @@ impl StdioTransport {
         let pending: Arc<Mutex<HashMap<u64, oneshot::Sender<JsonRpcResponse>>>> =
             Arc::new(Mutex::new(HashMap::new()));
 
-        // ── Writer task: sends framed messages to stdin ────────────────
+        // ── Writer task: sends newline-delimited JSON-RPC messages (MCP stdio spec) ──
         let (writer_tx, mut writer_rx) = mpsc::channel::<Vec<u8>>(64);
         let _writer_handle = {
             let mut stdin = stdin;
             tokio::spawn(async move {
-                while let Some(msg) = writer_rx.recv().await {
-                    let frame = format!("Content-Length: {}\r\n\r\n", msg.len());
-                    if let Err(e) = stdin.write_all(frame.as_bytes()).await {
-                        error!("[mcp] stdin write header error: {}", e);
-                        break;
+                while let Some(mut msg) = writer_rx.recv().await {
+                    if !msg.ends_with(b"\n") {
+                        msg.push(b'\n');
                     }
                     if let Err(e) = stdin.write_all(&msg).await {
-                        error!("[mcp] stdin write body error: {}", e);
+                        error!("[mcp] stdin write error: {}", e);
                         break;
                     }
                     if let Err(e) = stdin.flush().await {
@@ -333,17 +320,20 @@ impl Drop for StdioTransport {
     }
 }
 
-// ── Content-Length framed message reader ────────────────────────────────
+// ── Stdio message reader (MCP newline-delimited JSON + Content-Length fallback) ──
 
-/// Read a single Content-Length framed message from the stream.
+/// Read a single MCP JSON-RPC message from stdout.
+/// Supports both standard MCP newline-delimited JSON (`{...}\n`) and legacy
+/// `Content-Length: N\r\n\r\n{...}` framed streams.
 /// Returns `Ok(None)` on EOF, `Ok(Some(bytes))` on success.
 async fn read_message<R: tokio::io::AsyncRead + Unpin>(
     reader: &mut BufReader<R>,
 ) -> Result<Option<Vec<u8>>, String> {
+    const MAX_MCP_MESSAGE_BYTES: usize = 16 * 1024 * 1024;
     let mut content_length: Option<usize> = None;
     let mut header_line = String::new();
 
-    // Read headers until empty line
+    // Read until we find either a JSON-RPC line (`{...}` / `[...]`) or `Content-Length:` headers
     loop {
         header_line.clear();
         let n = reader
@@ -355,19 +345,31 @@ async fn read_message<R: tokio::io::AsyncRead + Unpin>(
         }
         let trimmed = header_line.trim();
         if trimmed.is_empty() {
-            break; // End of headers
+            if content_length.is_some() {
+                break; // End of Content-Length headers
+            }
+            continue; // Skip blank lines between newline-delimited messages
         }
-        if let Some(val) = trimmed.strip_prefix("Content-Length:") {
+        if content_length.is_none() && (trimmed.starts_with('{') || trimmed.starts_with('[')) {
+            if trimmed.len() > MAX_MCP_MESSAGE_BYTES {
+                return Err(format!(
+                    "MCP message too large: {} bytes (cap {} bytes — possible DoS)",
+                    trimmed.len(),
+                    MAX_MCP_MESSAGE_BYTES
+                ));
+            }
+            return Ok(Some(trimmed.as_bytes().to_vec()));
+        }
+        if let Some(val) = trimmed
+            .strip_prefix("Content-Length:")
+            .or_else(|| trimmed.strip_prefix("content-length:"))
+        {
             content_length = val.trim().parse::<usize>().ok();
         }
-        // Ignore unknown headers (Content-Type, etc.)
+        // Ignore unknown headers or non-JSON startup banners
     }
 
     let len = content_length.ok_or("Missing Content-Length header")?;
-    // B139: cap message size so a hostile/buggy MCP server can't push us into
-    // an OOM with an attacker-controlled Content-Length header. 16 MiB is far
-    // larger than any legitimate JSON-RPC payload.
-    const MAX_MCP_MESSAGE_BYTES: usize = 16 * 1024 * 1024;
     if len > MAX_MCP_MESSAGE_BYTES {
         return Err(format!(
             "MCP message too large: {} bytes (cap {} bytes — possible DoS)",
@@ -931,11 +933,7 @@ impl StreamableHttpTransport {
     }
 }
 
-// ══════════════════════════════════════════════════════════════════════
-// Unified Transport Handle — wraps Stdio or SSE
-// ══════════════════════════════════════════════════════════════════════
-
-/// Unified transport handle that delegates to the appropriate implementation.
+/// Unified transport handle that delegates to Stdio, SSE, or StreamableHttp.
 pub enum McpTransportHandle {
     Stdio(StdioTransport),
     Sse(SseTransport),
@@ -943,12 +941,7 @@ pub enum McpTransportHandle {
 }
 
 impl McpTransportHandle {
-    /// Send a JSON-RPC request and wait for the response.
-    pub async fn send_request(
-        &self,
-        request: JsonRpcRequest,
-        timeout_secs: u64,
-    ) -> Result<JsonRpcResponse, String> {
+    pub async fn send_request(&self, request: JsonRpcRequest, timeout_secs: u64) -> Result<JsonRpcResponse, String> {
         match self {
             McpTransportHandle::Stdio(t) => t.send_request(request, timeout_secs).await,
             McpTransportHandle::Sse(t) => t.send_request(request, timeout_secs).await,
@@ -956,12 +949,7 @@ impl McpTransportHandle {
         }
     }
 
-    /// Send a JSON-RPC notification (no response expected).
-    pub async fn send_notification(
-        &self,
-        method: &str,
-        params: Option<serde_json::Value>,
-    ) -> Result<(), String> {
+    pub async fn send_notification(&self, method: &str, params: Option<serde_json::Value>) -> Result<(), String> {
         match self {
             McpTransportHandle::Stdio(t) => t.send_notification(method, params).await,
             McpTransportHandle::Sse(t) => t.send_notification(method, params).await,
@@ -969,7 +957,6 @@ impl McpTransportHandle {
         }
     }
 
-    /// Shutdown the transport.
     pub async fn shutdown(&self) {
         match self {
             McpTransportHandle::Stdio(t) => t.shutdown().await,
@@ -978,7 +965,6 @@ impl McpTransportHandle {
         }
     }
 
-    /// Check if the transport is alive.
     pub async fn is_alive(&self) -> bool {
         match self {
             McpTransportHandle::Stdio(t) => t.is_alive().await,
@@ -988,42 +974,6 @@ impl McpTransportHandle {
     }
 }
 
-// ── Tests ──────────────────────────────────────────────────────────────
-
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[tokio::test]
-    async fn test_read_message_basic() {
-        let data = b"Content-Length: 13\r\n\r\n{\"test\":true}";
-        let mut reader = BufReader::new(&data[..]);
-        let result = read_message(&mut reader).await.unwrap().unwrap();
-        assert_eq!(result, b"{\"test\":true}");
-    }
-
-    #[tokio::test]
-    async fn test_read_message_eof() {
-        let data = b"";
-        let mut reader = BufReader::new(&data[..]);
-        let result = read_message(&mut reader).await.unwrap();
-        assert!(result.is_none());
-    }
-
-    #[tokio::test]
-    async fn test_read_message_with_extra_headers() {
-        let data = b"Content-Length: 2\r\nContent-Type: application/json\r\n\r\n{}";
-        let mut reader = BufReader::new(&data[..]);
-        let result = read_message(&mut reader).await.unwrap().unwrap();
-        assert_eq!(result, b"{}");
-    }
-
-    #[test]
-    fn test_sse_transport_handle_enum_variants() {
-        // Verify enum variants exist (compile-time check)
-        // We can't construct real transports without actual processes/servers,
-        // but this ensures the enum is well-formed.
-        fn _assert_send_sync<T: Send>() {}
-        // SseTransport should be Send due to Arc internals
-    }
-}
+#[path = "transport_tests.rs"]
+mod tests;

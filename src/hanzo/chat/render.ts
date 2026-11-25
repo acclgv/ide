@@ -7,8 +7,9 @@
 
 import { marked } from 'marked'
 import { invoke } from '@tauri-apps/api/core'
+import { renderHanzoMarkSvg } from '../brand.ts'
 import { applyCodeToEditor } from '../editor.ts'
-import { getWorkspace, getActiveFile, getSelectionRange } from '../ide-context.ts'
+import { getActiveFile, getSelectionRange } from '../ide-context.ts'
 import { S } from './state.ts'
 import type { ChatMsg, DiffLine } from './types.ts'
 
@@ -198,15 +199,15 @@ export function makeBubble(msg: ChatMsg): HTMLElement {
   const bubble = document.createElement('div')
 
   if (isUser) {
-    wrap.style.cssText = 'display:flex;justify-content:flex-end;padding:6px 14px 2px'
+    wrap.style.cssText = 'display:flex;justify-content:flex-end;padding:4px 14px 2px'
     bubble.className = 'hanzo-chat-user-bubble'
     bubble.style.cssText = [
-      'max-width:84%',
-      'padding:10px 14px',
-      'border-radius:16px 16px 4px 16px',
-      'color:var(--vscode-foreground)',
-      'font-size:13px',
-      'line-height:1.55',
+      'width:100%',
+      'padding:9px 11px',
+      'border-radius:8px',
+      'color:var(--zen-fg, #e5e5e5)',
+      'font-size:12px',
+      'line-height:1.5',
       'white-space:pre-wrap',
       'word-break:break-word',
     ].join(';')
@@ -365,13 +366,47 @@ export function renderMessages(): void {
     S.msgList.innerHTML = ''
     const empty = document.createElement('div')
     empty.className = 'hanzo-chat-empty'
-    empty.innerHTML = `
-      <div class="hanzo-chat-empty-heading">
-        <span class="hanzo-chat-empty-mark"><img src="${window.location.origin}/mark.svg" alt=""></span>
-        <span class="hanzo-chat-empty-title">Hanzo</span>
-      </div>
-      <div class="hanzo-chat-empty-subtitle">Your codebase, understood.</div>
-    `
+
+    const iconWrap = document.createElement('div')
+    iconWrap.className = 'hanzo-chat-empty-mark'
+    iconWrap.innerHTML = renderHanzoMarkSvg(28)
+
+    const title = document.createElement('h2')
+    title.className = 'hanzo-chat-empty-title'
+    title.textContent = 'Build what’s next.'
+
+    const subtitle = document.createElement('p')
+    subtitle.className = 'hanzo-chat-empty-subtitle'
+    subtitle.textContent = 'Ask, edit files, or invoke @file & HIP-0300 MCP tools.'
+
+    const prompts = document.createElement('div')
+    prompts.className = 'hanzo-chat-empty-prompts'
+    for (const sample of [
+      { label: 'Explain architecture', prompt: 'Explain the architecture and key modules of this project.' },
+      { label: 'Fix failing tests', prompt: 'Run the test suite and fix any failing tests.' },
+      { label: 'Review git diff', prompt: 'Review my current git diff for bugs, edge cases, and style.' },
+      { label: 'Explore MCP tools', action: 'mcp' as const },
+    ]) {
+      const chip = document.createElement('button')
+      chip.type = 'button'
+      chip.className = 'hanzo-chat-empty-chip'
+      chip.textContent = sample.label
+      chip.addEventListener('click', () => {
+        if (sample.action === 'mcp') {
+          void import('../zen-workspace.ts').then(({ toggleZenPanel }) => {
+            void toggleZenPanel('integrations')
+          })
+          return
+        }
+        if (!S.textarea) return
+        S.textarea.value = sample.prompt
+        S.textarea.dispatchEvent(new Event('input'))
+        S.textarea.focus()
+      })
+      prompts.appendChild(chip)
+    }
+
+    empty.append(iconWrap, title, subtitle, prompts)
     S.msgList.appendChild(empty)
     return
   }
@@ -545,7 +580,9 @@ export function setStreaming(active: boolean): void {
     S.textarea.disabled = false
     S.textarea.placeholder = active
       ? 'Send to redirect agent… (Enter)'
-      : 'Ask Hanzo anything… (Cmd+L)'
+      : S.planMode
+        ? 'Describe what to build… (Plan first)'
+        : 'Ask, edit files, or invoke @file /mcp tools…'
   }
   if (S.whisperRow) S.whisperRow.style.display = active ? 'flex' : 'none'
   if (!active && S.whisperInput) S.whisperInput.value = ''
@@ -560,43 +597,11 @@ export function setStreaming(active: boolean): void {
 // ─── Select Updates ──────────────────────────────────────────────────────────
 
 export function updateAgentSelect(): void {
-  if (!S.agentSelect) return
-  S.agentSelect.innerHTML = '<option value="">Default agent</option>'
-
-  // ── Built-in agents (V2 build only; empty in OSS) ───────────────────────
-  // Skip the dynamic import + iteration when there are no builtins to render.
-  import('../chat/send.ts').then(({ BUILTIN_AGENTS }) => {
-    if (BUILTIN_AGENTS.length === 0) return
-    for (const agent of BUILTIN_AGENTS as unknown as any[]) {
-      const opt = document.createElement('option')
-      opt.value = agent.agent_id
-      opt.textContent = agent.name
-      opt.style.fontWeight = '600'
-      if (S.selectedAgent?.agent_id === agent.agent_id) opt.selected = true
-      S.agentSelect!.appendChild(opt)
-    }
-  }).catch(() => {})
-
-  // ── DB agents ─────────────────────────────────────────────────────────────
-  for (const agent of S.agents) {
-    const opt = document.createElement('option')
-    opt.value = agent.agent_id
-    opt.textContent = `${agent.agent_id} (${agent.role})`
-    if (S.selectedAgent?.agent_id === agent.agent_id) opt.selected = true
-    S.agentSelect.appendChild(opt)
-  }
+  // Agent selection is preserved in `S.selectedAgent` / `S.agents`.
 }
 
 export function updateSessionSelect(): void {
-  if (!S.sessionSelect) return
-  S.sessionSelect.innerHTML = '<option value="">New chat</option>'
-  for (const session of S.sessions.slice(0, 20)) {
-    const opt = document.createElement('option')
-    opt.value = session.id
-    opt.textContent = session.title || session.id.slice(0, 12)
-    if (S.sessionId === session.id) opt.selected = true
-    S.sessionSelect.appendChild(opt)
-  }
+  S.onSessionsUpdated?.()
 }
 
 // ─── Attachments ─────────────────────────────────────────────────────────────
@@ -628,30 +633,12 @@ export function updateContextPills(): void {
   S.contextBar.innerHTML = ''
   const pills: { icon: string; label: string; title?: string }[] = []
 
-  const workspace = getWorkspace()
-  if (workspace) {
-    const name = workspace.split('/').pop() ?? workspace
-    pills.push({ icon: 'codicon-folder', label: name, title: workspace })
-  }
-
   const activeFile = getActiveFile()
-  if (activeFile) {
-    const name = activeFile.split('/').pop() ?? activeFile
-    pills.push({ icon: 'codicon-file-code', label: name, title: activeFile })
-  }
-
   const sel = getSelectionRange()
-  if (sel) {
+  if (sel && activeFile) {
+    const name = activeFile.split('/').pop() ?? activeFile
     const lines = sel.endLine - sel.startLine + 1
-    pills.push({ icon: 'codicon-selection', label: `${lines} lines selected` })
-  }
-
-  if (S.attachments.length > 0) {
-    pills.push({ icon: 'codicon-paperclip', label: `${S.attachments.length} attached` })
-  }
-
-  if (S.thinkingLevel !== 'none') {
-    pills.push({ icon: 'codicon-brain', label: `Think: ${S.thinkingLevel}` })
+    pills.push({ icon: 'codicon-selection', label: `${name} (${lines}L)`, title: activeFile })
   }
 
   if (S.checkpoint) {

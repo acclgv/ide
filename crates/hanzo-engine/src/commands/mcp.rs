@@ -1,7 +1,8 @@
 // commands/mcp.rs — Tauri IPC commands for MCP server management (Phase E)
 
 use crate::commands::state::EngineState;
-use crate::engine::mcp::types::{McpServerConfig, McpServerStatus};
+use crate::engine::mcp::resolve_hanzo_mcp_binary;
+use crate::engine::mcp::types::{McpServerConfig, McpServerStatus, McpServerToolInfo};
 use crate::engine::vault::{decrypt_credential, encrypt_credential, get_vault_key};
 use tauri::Manager;
 use tauri::State;
@@ -133,19 +134,28 @@ pub async fn engine_mcp_connect(
     state: State<'_, EngineState>,
     id: String,
 ) -> Result<(), String> {
+    use crate::engine::mcp::client::McpClient;
+    use crate::engine::mcp::registry::McpRegistry;
+
     let servers = load_and_decrypt(&app_handle)?;
+    let config = match servers.into_iter().find(|s| s.id == id) {
+        Some(cfg) => {
+            if !cfg.enabled {
+                return Err(format!("Server '{}' is disabled", id));
+            }
+            cfg
+        }
+        None if id == "hanzo" => {
+            let ws = state.store.get_config("user_workspace_path").ok().flatten();
+            McpRegistry::build_hanzo_config(ws.as_deref())
+        }
+        None => return Err(format!("Server '{}' not found", id)),
+    };
 
-    let config = servers
-        .into_iter()
-        .find(|s| s.id == id)
-        .ok_or_else(|| format!("Server '{}' not found", id))?;
-
-    if !config.enabled {
-        return Err(format!("Server '{}' is disabled", id));
-    }
-
+    let client = McpClient::connect(config).await?;
     let mut reg = state.mcp_registry.lock().await;
-    reg.connect(config).await
+    reg.insert_connected(client).await;
+    Ok(())
 }
 
 // ── Disconnect a server ────────────────────────────────────────────────
@@ -170,6 +180,23 @@ pub async fn engine_mcp_status(
     Ok(reg.status_list().await)
 }
 
+// ── List live tools across all connected MCP servers ───────────────────
+
+#[tauri::command]
+pub async fn engine_mcp_list_tools(
+    state: State<'_, EngineState>,
+) -> Result<Vec<McpServerToolInfo>, String> {
+    let reg = state.mcp_registry.lock().await;
+    Ok(reg.list_server_tools())
+}
+
+// ── Detect installed `hanzo-mcp` (HIP-0300) binary on host ─────────────
+
+#[tauri::command]
+pub fn engine_mcp_detect_binary() -> Option<String> {
+    resolve_hanzo_mcp_binary()
+}
+
 // ── Refresh tool list for a server ─────────────────────────────────────
 
 #[tauri::command]
@@ -183,31 +210,50 @@ pub async fn engine_mcp_refresh_tools(
 
 // ── Connect all enabled servers (called on app startup) ────────────────
 
-#[tauri::command]
-pub async fn engine_mcp_connect_all(
-    app_handle: tauri::AppHandle,
-    state: State<'_, EngineState>,
-) -> Result<(), String> {
-    let servers = load_and_decrypt(&app_handle)?;
+pub async fn auto_connect_startup_servers(app_handle: &tauri::AppHandle) -> Result<(), String> {
+    use crate::engine::mcp::client::McpClient;
+    use crate::engine::mcp::registry::McpRegistry;
 
-    let mut errors = Vec::new();
-    let mut reg = state.mcp_registry.lock().await;
-
-    // The Hanzo tool server ships with the CLI and shares ~/.hanzo, so it is
-    // always available rather than something the user has to configure.
+    let state = app_handle
+        .try_state::<EngineState>()
+        .ok_or_else(|| "Engine not initialized".to_string())?;
+    let servers = load_and_decrypt(app_handle).unwrap_or_default();
     let workspace = state.store.get_config("user_workspace_path").ok().flatten();
-    if let Err(e) = reg.register_hanzo(workspace.as_deref()).await {
-        log::warn!("[mcp] Hanzo tool server unavailable: {}", e);
+
+    // 1. Connect Hanzo MCP (HIP-0300) first WITHOUT holding `mcp_registry` lock during handshake
+    let hanzo_cfg = McpRegistry::build_hanzo_config(workspace.as_deref());
+    match McpClient::connect(hanzo_cfg).await {
+        Ok(client) => {
+            let count = client.tools.len();
+            let mut reg = state.mcp_registry.lock().await;
+            reg.insert_connected(client).await;
+            log::info!("[mcp] Hanzo HIP-0300 tool server connected ({} tools)", count);
+        }
+        Err(e) => {
+            log::warn!("[mcp] Hanzo tool server unavailable: {}", e);
+        }
     }
 
+    // 2. Connect user-configured MCP servers without blocking status queries
+    let mut errors = Vec::new();
     for server in servers {
-        if !server.enabled {
+        if !server.enabled || server.id == "hanzo" {
             continue;
         }
         let name = server.name.clone();
-        if let Err(e) = reg.connect(server).await {
-            log::warn!("[mcp] Failed to connect '{}': {}", name, e);
-            errors.push(format!("{}: {}", name, e));
+        match tokio::time::timeout(std::time::Duration::from_secs(6), McpClient::connect(server)).await {
+            Ok(Ok(client)) => {
+                let mut reg = state.mcp_registry.lock().await;
+                reg.insert_connected(client).await;
+            }
+            Ok(Err(e)) => {
+                log::warn!("[mcp] Failed to connect '{}': {}", name, e);
+                errors.push(format!("{}: {}", name, e));
+            }
+            Err(_) => {
+                log::warn!("[mcp] Timed out connecting '{}'", name);
+                errors.push(format!("{}: startup connect timeout", name));
+            }
         }
     }
 
@@ -219,6 +265,14 @@ pub async fn engine_mcp_connect_all(
             errors.join("; ")
         ))
     }
+}
+
+#[tauri::command]
+pub async fn engine_mcp_connect_all(
+    app_handle: tauri::AppHandle,
+    _state: State<'_, EngineState>,
+) -> Result<(), String> {
+    auto_connect_startup_servers(&app_handle).await
 }
 
 // ── Execute a specific MCP tool directly (used by extension adapters) ─────

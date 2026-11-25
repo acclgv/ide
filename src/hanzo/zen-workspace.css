@@ -1,0 +1,403 @@
+/* ── Hanzo IDE — Zen Workspace Surfaces (`zen-workspace.css`) ────────────────
+ * Minimal Welcome Canvas (#090909), Left Sidebar Mini Switcher (#0c0c0c),
+ * Integrated Browser Preview (#0b0b0b), and Focus Mode.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+/* ── Minimal Zen Empty / Welcome Canvas (`#090909`) ───────────────────────── */
+
+.hanzo-zen-welcome {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  background: var(--zen-canvas, #090909);
+  user-select: none;
+}
+
+.hanzo-zen-welcome[hidden] {
+  display: none !important;
+}
+
+.hanzo-zen-welcome-inner {
+  width: 276px;
+  max-width: 92%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translateY(-24px);
+}
+
+.hanzo-zen-welcome-logo {
+  color: #bdbdbd;
+  margin-bottom: 35px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-hanzo-theme='light'] .hanzo-zen-welcome-logo {
+  color: #3f3f46;
+}
+
+.hanzo-zen-actions {
+  width: 100%;
+  display: grid;
+  gap: 3px;
+}
+
+.hanzo-zen-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 34px;
+  text-align: left;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  padding: 0 10px;
+  color: #b8b8b8;
+  font-family: var(--hanzo-font-ui);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.hanzo-zen-action:hover {
+  background: #151515;
+  color: #eeeeee;
+}
+
+[data-hanzo-theme='light'] .hanzo-zen-action {
+  color: #52525b;
+}
+
+[data-hanzo-theme='light'] .hanzo-zen-action:hover {
+  background: #f1f1f3;
+  color: #18181b;
+}
+
+.hanzo-zen-act-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hanzo-zen-action .hanzo-zen-icon {
+  color: #8c8c8c;
+  width: 15px;
+  height: 15px;
+}
+
+.hanzo-zen-keys {
+  display: inline-flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.hanzo-zen-kbd {
+  font: 10px/1.5 var(--hanzo-font-ui);
+  display: inline-block;
+  color: #929292;
+  border: 1px solid #2b2b2b;
+  border-radius: 4px;
+  background: #121212;
+  padding: 0 5px;
+  white-space: nowrap;
+}
+
+[data-hanzo-theme='light'] .hanzo-zen-kbd {
+  color: #71717b;
+  border-color: #d4d4d8;
+  background: #f4f4f5;
+}
+
+.hanzo-zen-recent {
+  margin-top: 25px;
+  width: 100%;
+  border-top: 1px solid var(--zen-border, #1d1d1d);
+  padding-top: 14px;
+}
+
+.hanzo-zen-recent[hidden] {
+  display: none !important;
+}
+
+.hanzo-zen-recent-title {
+  color: var(--zen-subtle, #777777);
+  font-size: 11px;
+  margin: 0 10px 6px;
+}
+
+.hanzo-zen-recent-btn {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border: none;
+  background: transparent;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #aaaaaa;
+  font-family: var(--hanzo-font-ui);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.hanzo-zen-recent-btn:hover {
+  background: var(--zen-hover, #1b1b1b);
+  color: var(--zen-fg, #e5e5e5);
+}
+
+.hanzo-zen-recent-btn small {
+  margin-left: auto;
+  color: #666666;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 96px;
+}
+
+/* ── Left Sidebar Header + Mini Viewlet Switcher ──────────────────────────── */
+
+.hanzo-zen-left-chrome {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--zen-panel, #0c0c0c);
+  user-select: none;
+}
+
+/* Hide custom mini switcher only when user opts into Traditional Activity Bar */
+html[data-zen-traditional-activitybar='true'] .hanzo-zen-left-chrome {
+  display: none !important;
+}
+
+.hanzo-zen-phead {
+  height: 37px;
+  flex: none;
+  padding: 0 9px 0 13px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  border-bottom: 1px solid var(--zen-border-subtle, #1b1b1b);
+  color: var(--zen-fg, #d2d2d2);
+  font-family: var(--hanzo-font-ui);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.hanzo-zen-phead-grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.hanzo-zen-ib {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 5px;
+  color: var(--zen-muted, #a0a0a0);
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  flex: none;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.hanzo-zen-ib:hover {
+  background: var(--zen-hover, #1b1b1b);
+  color: var(--zen-fg, #e5e5e5);
+}
+
+.hanzo-zen-ib[aria-pressed='true'] {
+  background: var(--zen-hover, #1b1b1b);
+  color: var(--zen-fg, #eeeeee);
+}
+
+.hanzo-zen-phead .hanzo-zen-ib {
+  width: 25px;
+  height: 25px;
+}
+
+.hanzo-zen-pane-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+}
+
+.hanzo-zen-pane-tabs .hanzo-zen-ib {
+  width: 29px;
+  height: 28px;
+}
+
+/* ── Editor Tab Strip `+` New File Button ─────────────────────────────────── */
+
+.hanzo-zen-tab-add {
+  width: 26px;
+  height: 26px;
+  margin-left: 4px;
+  align-self: center;
+}
+
+/* ── Integrated Browser Preview (`#hanzo-zen-browser`) ────────────────────── */
+
+.hanzo-zen-browser {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  background: var(--zen-panel, #0c0c0c);
+}
+
+.hanzo-zen-browser[hidden] {
+  display: none !important;
+}
+
+.hanzo-zen-browser-address {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--zen-border, #222222);
+  background: var(--zen-panel, #0c0c0c);
+}
+
+.hanzo-zen-browser-url {
+  flex: 1;
+  min-width: 0;
+  background: var(--zen-surface, #141414);
+  border: 1px solid var(--zen-border, #282828);
+  border-radius: 5px;
+  height: 27px;
+  padding: 0 9px;
+  color: var(--zen-fg, #d5d5d5);
+  font-family: var(--hanzo-font-ui);
+  font-size: 12px;
+  outline: none;
+}
+
+.hanzo-zen-browser-url:focus {
+  border-color: var(--hanzo-border-focus, #3a3a3a);
+}
+
+.hanzo-zen-browser-stage {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--zen-tabbar, #0b0b0b);
+}
+
+.hanzo-zen-browser-empty {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 24px;
+}
+
+.hanzo-zen-browser-empty[hidden] {
+  display: none !important;
+}
+
+.hanzo-zen-browser-empty h1 {
+  font-size: 32px;
+  letter-spacing: -1.4px;
+  font-weight: 550;
+  color: var(--zen-fg, #e5e5e5);
+  margin: 16px 0 6px;
+}
+
+.hanzo-zen-browser-empty p {
+  color: var(--zen-subtle, #888888);
+  font-size: 12.5px;
+  margin: 0;
+}
+
+.hanzo-zen-browser-iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #ffffff;
+}
+
+.hanzo-zen-browser-iframe[hidden] {
+  display: none !important;
+}
+
+/* ── Focus Mode (`html[data-zen-focus='true']`) ───────────────────────────── */
+
+html[data-zen-focus='true'] .monaco-workbench .part.titlebar,
+html[data-zen-focus='true'] .monaco-workbench .part.statusbar,
+html[data-zen-focus='true'] .monaco-workbench .part.sidebar,
+html[data-zen-focus='true'] .monaco-workbench .part.auxiliarybar,
+html[data-zen-focus='true'] .monaco-workbench .part.panel,
+html[data-zen-focus='true'] .monaco-workbench .part.editor .tabs-and-actions-container,
+html[data-zen-focus='true'] .monaco-workbench .breadcrumbs-below-tabs {
+  display: none !important;
+}
+
+.hanzo-zen-toast {
+  position: fixed;
+  right: 14px;
+  bottom: 34px;
+  background: var(--zen-hover, #1b1b1b);
+  border: 1px solid var(--zen-border, #333333);
+  color: var(--zen-fg, #e5e5e5);
+  padding: 8px 13px;
+  border-radius: 7px;
+  font-family: var(--hanzo-font-ui);
+  font-size: 12px;
+  z-index: 10000;
+  box-shadow: var(--hanzo-shadow-md);
+}
+
+.hanzo-zen-toast[hidden] {
+  display: none !important;
+}
+
+/* ── Subtle Zed-Style Quick-File / Scratch Inline Shortcut Hint ───────────── */
+
+.hanzo-zen-inline-hint {
+  position: absolute;
+  right: 14px;
+  bottom: 12px;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 6px;
+  background: rgba(20, 20, 20, 0.82);
+  border: 1px solid #222222;
+  color: #777777;
+  font-family: var(--hanzo-font-ui);
+  font-size: 11px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.hanzo-zen-inline-hint[hidden] {
+  display: none !important;
+}
+
+.hanzo-zen-inline-hint kbd {
+  font-family: var(--hanzo-font-ui);
+  font-size: 10px;
+  padding: 0 4px;
+  border-radius: 3px;
+  border: 1px solid #2a2a2a;
+  background: #111111;
+  color: #9e9e9e;
+}

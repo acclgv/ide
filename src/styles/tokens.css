@@ -1,146 +1,150 @@
-/* Zen is the Hanzo typeface, and this is the ONE place it is loaded: every
-   entry imports this sheet, so the workbench and the detached chat wear the
-   same face. Bundled with the app — no network, the same offline. */
-@import '@hanzo/font/css';
-
-/* ── Hanzo Unified Shell Tokens (Hanzo Dev · Hanzo Team · Hanzo IDE) ─────────
- * Canonical obsidian dark & alabaster light tokens shared across Hanzo apps.
+/* ── Hanzo IDE — Zen Design System Tokens (v0.2.0) ──────────────────────────
+ * Canonical tokens shared with Hanzo Dev (`themePalettes.ts` + `hanzo-ide.html`).
+ *
+ * Themes:
+ *   - Default (`zen`):   #000000 chrome · #090909 canvas · #0c0c0c panel · #141414 surface
+ *   - Clay (`clay`):     #141418 chrome · #111016 canvas · #0e0d12 panel · #1a1921 surface
+ *   - Light (`light`):   #ffffff chrome · #ffffff canvas · #f7f7f7 panel · #fafafa surface
  * ────────────────────────────────────────────────────────────────────────── */
 
-:root,
-[data-hanzo-theme='dark'] {
-  /* ── Outer Chrome, Rail, Sidebar & Inset Stage ──────────────────────────
-   * Chrome and sidebar stay on the pure neutral ramp (R = G = B) so large
-   * structural panes carry zero colour cast. */
-  --hanzo-floor:           #090909;       /* outer chrome / app floor */
-  --hanzo-rail:            #090909;       /* left activity rail */
-  --hanzo-sidebar:         #0c0c0c;       /* collapsible sidebar (240-260px) */
-  --hanzo-bg:              #111114;       /* inset stage / editor canvas */
-  --hanzo-surface:         #090909;       /* titlebar, statusbar, rail chrome */
-  --hanzo-surface-raised:  #16161a;       /* elevated — popovers, command palette, menus */
-  --hanzo-surface-hover:   rgba(255, 255, 255, 0.05); /* 8px pill row hover */
-  --hanzo-surface-active:  rgba(255, 255, 255, 0.09); /* 8px pill row active */
-  --hanzo-surface-card:    #141417;       /* card & input surfaces */
+:root {
+  color-scheme: dark;
 
-  /* ── Gradient stops ────────────────────────────────────────────────── */
-  --hanzo-grad-light:      #18181b;
-  --hanzo-grad-mid:        #111114;
-  --hanzo-grad-dark:       #090909;
+  /* Zen Core Surfaces */
+  --zen-chrome: #000000;
+  --zen-chrome-border: #171717;
+  --zen-canvas: #090909;
+  --zen-panel: #0c0c0c;
+  --zen-tabbar: #0b0b0b;
+  --zen-tab-active: #191919;
+  --zen-surface: #141414;
+  --zen-hover: #1b1b1b;
+  --zen-border: #222222;
+  --zen-border-subtle: #1b1b1b;
+  --zen-fg: #e5e5e5;
+  --zen-muted: #a0a0a0;
+  --zen-subtle: #777777;
+  --zen-dim: #555555;
+  --zen-accent: #e5e5e5;
+  --zen-accent-ink: #111111;
+  --zen-pill-bg: #242424;
 
-  /* ── Hairline Borders (zero noisy dividers) ────────────────────────── */
-  --hanzo-border:          #222226;       /* canonical hairline border (rgba(255,255,255,0.08)) */
-  --hanzo-border-subtle:   rgba(255, 255, 255, 0.06);
-  --hanzo-border-stage:    #19191c;       /* inset editor canvas hairline */
-  --hanzo-border-light:    rgba(255, 255, 255, 0.05);
-  --hanzo-border-glow:     rgba(255, 255, 255, 0.08);
-  --hanzo-border-focus:    rgba(250, 250, 250, 0.32);
+  /* Unified Hanzo Aliases */
+  --hanzo-floor: var(--zen-chrome);
+  --hanzo-rail: var(--zen-panel);
+  --hanzo-sidebar: var(--zen-panel);
+  --hanzo-bg: var(--zen-canvas);
+  --hanzo-bg-elevated: var(--zen-surface);
+  --hanzo-surface: var(--zen-panel);
+  --hanzo-surface-raised: var(--zen-surface);
+  --hanzo-surface-card: var(--zen-surface);
+  --hanzo-surface-hover: var(--zen-hover);
+  --hanzo-surface-active: #1c1c1c;
 
-  /* ── Accent (Hanzo high-contrast monochrome — never blue/purple) ───── */
-  --hanzo-accent:          #ffffff;
-  --hanzo-accent-pill:     #e4e4e7;
-  --hanzo-accent-ink:      #09090b;
-  --hanzo-accent-bright:   #ffffff;
-  --hanzo-accent-dim:      #a1a1aa;
-  --hanzo-accent-glow:     rgba(255, 255, 255, 0.11);
-  --hanzo-accent-subtle:   rgba(255, 255, 255, 0.09);
-  --hanzo-accent-bg:       rgba(255, 255, 255, 0.05);
+  --hanzo-border: var(--zen-border);
+  --hanzo-border-subtle: var(--zen-border-subtle);
+  --hanzo-border-focus: #3a3a3a;
 
-  /* ── Typography & Ink ──────────────────────────────────────────────── */
-  --hanzo-text:            #fafafa;       /* primary foreground */
-  --hanzo-text-secondary:  #a1a1aa;       /* secondary / muted foreground */
-  --hanzo-text-muted:      #71717a;       /* subtle metadata */
-  --hanzo-text-accent:     #fafafa;
+  --hanzo-text: var(--zen-fg);
+  --hanzo-text-secondary: var(--zen-muted);
+  --hanzo-text-muted: var(--zen-subtle);
 
-  /* ── Semantic Status Dots & Signals ────────────────────────────────── */
-  --hanzo-success:         #10b981;       /* live status dot */
-  --hanzo-warning:         #f59e0b;       /* approval / warning */
-  --hanzo-error:           #ef4444;       /* error */
-  --hanzo-info:            #a1a1aa;       /* neutral metadata signal */
+  --hanzo-accent: var(--zen-accent);
+  --hanzo-accent-pill: var(--zen-pill-bg);
+  --hanzo-accent-ink: var(--zen-accent-ink);
+  --hanzo-accent-dim: rgba(255, 255, 255, 0.08);
+  --hanzo-accent-glow: rgba(255, 255, 255, 0.05);
 
-  /* ── Shell Geometry & Radius ───────────────────────────────────────── */
+  --hanzo-success: #82a681;
+  --hanzo-warning: #fe9a00;
+  --hanzo-error: #fb414a;
+  --hanzo-info: #9db5c9;
+
+  /* Typography (`@hanzo/font` Zen & Zen Mono) */
+  --font-sans: 'Zen', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: 'Zen Mono', monospace;
+  --hanzo-font-ui: var(--font-sans);
+  --hanzo-font-mono: var(--font-mono);
+  --hanzo-font-size-xs: 11px;
+  --hanzo-font-size-sm: 12px;
+  --hanzo-font-size-base: 13px;
+  --hanzo-font-size-lg: 14px;
+  --hanzo-line-height: 1.5;
+
+  /* Zen Geometry */
   --hanzo-titlebar-height: 40px;
-  --hanzo-sidebar-width:   248px;
-  --hanzo-row-radius:      8px;
-  --hanzo-radius-xs:       4px;
-  --hanzo-radius-sm:       6px;
-  --hanzo-radius-md:       8px;
-  --hanzo-radius-lg:       8px;
-  --hanzo-radius-xl:       12px;
-  --hanzo-radius-pill:     9999px;
-  --hanzo-radius-round:    50%;
+  --hanzo-sidebar-width: 248px;
+  --hanzo-right-width: 340px;
+  --hanzo-bottom-height: 210px;
+  --hanzo-status-height: 23px;
+  --hanzo-row-radius: 6px;
 
-  /* ── Shadows ───────────────────────────────────────────────────────── */
-  --hanzo-shadow-sm:       0 1px 2px rgba(0, 0, 0, 0.45);
-  --hanzo-shadow-md:       0 8px 24px -8px rgba(0, 0, 0, 0.65), 0 1px 3px rgba(0, 0, 0, 0.35);
-  --hanzo-shadow-lg:       0 20px 56px -16px rgba(0, 0, 0, 0.85), 0 2px 6px rgba(0, 0, 0, 0.4);
-  --hanzo-shadow-glow:     0 0 10px var(--hanzo-accent-glow);
-  --hanzo-shadow-glow-sm:  0 0 5px var(--hanzo-accent-glow);
-  --hanzo-shadow-inset:    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --hanzo-radius-xs: 4px;
+  --hanzo-radius-sm: 5px;
+  --hanzo-radius-md: 6px;
+  --hanzo-radius-lg: 9px;
+  --hanzo-radius-xl: 12px;
 
-  /* ── Transitions ───────────────────────────────────────────────────── */
-  --hanzo-transition-fast:    0.12s cubic-bezier(0.16, 1, 0.3, 1);
-  --hanzo-transition:         0.18s cubic-bezier(0.16, 1, 0.3, 1);
-  --hanzo-transition-slow:    0.28s cubic-bezier(0.16, 1, 0.3, 1);
-  --hanzo-transition-spring:  0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  --hanzo-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.5);
+  --hanzo-shadow-md: 0 10px 30px rgba(0, 0, 0, 0.65);
+  --hanzo-shadow-lg: 0 16px 55px rgba(0, 0, 0, 0.78);
 
-  /* ── Typography ────────────────────────────────────────────────────── */
-  --hanzo-font-ui:         'Zen', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --hanzo-font-mono:       'Zen Mono', 'SF Mono', ui-monospace, monospace;
-  --hanzo-font-size-xs:    10px;
-  --hanzo-font-size-sm:    11px;
-  --hanzo-font-size-md:    12px;
-  --hanzo-font-size-base:  13px;
-  --hanzo-font-size-lg:    14px;
-  --hanzo-font-size-xl:    16px;
-  --hanzo-font-size-2xl:   20px;
-  --hanzo-line-height:     1.5;
+  --hanzo-transition-fast: 100ms ease;
+  --hanzo-transition: 120ms ease;
 }
 
-/* ── Hanzo Light (Clean Alabaster) ───────────────────────────────────────── */
+/* ── Clay Dark Variant (`CLAY_THEME.variants.dark`) ────────────────────────── */
+
+[data-hanzo-theme-id='clay'] {
+  color-scheme: dark;
+  --zen-chrome: #141418;
+  --zen-chrome-border: #282633;
+  --zen-canvas: #111016;
+  --zen-panel: #0e0d12;
+  --zen-tabbar: #121117;
+  --zen-tab-active: #23212c;
+  --zen-surface: #1a1921;
+  --zen-hover: #1f1d28;
+  --zen-border: #2c2a38;
+  --zen-border-subtle: #24222f;
+  --zen-fg: #f4f2f8;
+  --zen-muted: #9b96ab;
+  --zen-subtle: #8c869e;
+  --zen-dim: #68607a;
+  --zen-accent: #d11641;
+  --zen-accent-ink: #ffffff;
+  --zen-pill-bg: #262430;
+  --hanzo-surface-active: #252230;
+  --hanzo-border-focus: #d11641;
+}
+
+/* ── Zen Light Variant (`ZEN_THEME.colors`) ────────────────────────────────── */
+
 [data-hanzo-theme='light'],
 .light {
-  --hanzo-floor:           #f8f8fa;
-  --hanzo-rail:            #f8f8fa;
-  --hanzo-sidebar:         #f4f4f6;
-  --hanzo-bg:              #ffffff;
-  --hanzo-surface:         #f8f8fa;
-  --hanzo-surface-raised:  #ffffff;
-  --hanzo-surface-hover:   rgba(0, 0, 0, 0.04);
-  --hanzo-surface-active:  rgba(0, 0, 0, 0.07);
-  --hanzo-surface-card:    #f4f4f5;
-
-  --hanzo-grad-light:      #ffffff;
-  --hanzo-grad-mid:        #f8f8fa;
-  --hanzo-grad-dark:       #f4f4f5;
-
-  --hanzo-border:          #e4e4e7;
-  --hanzo-border-subtle:   rgba(0, 0, 0, 0.06);
-  --hanzo-border-stage:    #e4e4e7;
-  --hanzo-border-light:    rgba(0, 0, 0, 0.05);
-  --hanzo-border-glow:     rgba(0, 0, 0, 0.08);
-  --hanzo-border-focus:    rgba(24, 24, 27, 0.32);
-
-  --hanzo-accent:          #18181b;
-  --hanzo-accent-pill:     #18181b;
-  --hanzo-accent-ink:      #ffffff;
-  --hanzo-accent-bright:   #27272a;
-  --hanzo-accent-dim:      #52525b;
-  --hanzo-accent-glow:     rgba(24, 24, 27, 0.08);
-  --hanzo-accent-subtle:   rgba(0, 0, 0, 0.07);
-  --hanzo-accent-bg:       rgba(0, 0, 0, 0.04);
-
-  --hanzo-text:            #18181b;
-  --hanzo-text-secondary:  #52525b;
-  --hanzo-text-muted:      #71717a;
-  --hanzo-text-accent:     #18181b;
-
-  --hanzo-success:         #10b981;
-  --hanzo-warning:         #f59e0b;
-  --hanzo-error:           #ef4444;
-  --hanzo-info:            #52525b;
-
-  --hanzo-shadow-sm:       0 1px 2px rgba(0, 0, 0, 0.05);
-  --hanzo-shadow-md:       0 8px 24px -8px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.06);
-  --hanzo-shadow-lg:       0 20px 56px -16px rgba(0, 0, 0, 0.18), 0 2px 6px rgba(0, 0, 0, 0.08);
-  --hanzo-shadow-inset:    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+  color-scheme: light;
+  --zen-chrome: #ffffff;
+  --zen-chrome-border: #e4e4e7;
+  --zen-canvas: #ffffff;
+  --zen-panel: #f7f7f7;
+  --zen-tabbar: #fafafa;
+  --zen-tab-active: #eaeaea;
+  --zen-surface: #ffffff;
+  --zen-hover: #efefef;
+  --zen-border: #e4e4e7;
+  --zen-border-subtle: #ececef;
+  --zen-fg: #27272a;
+  --zen-muted: #71717b;
+  --zen-subtle: #8e8e98;
+  --zen-dim: #a1a1aa;
+  --zen-accent: #18181b;
+  --zen-accent-ink: #ffffff;
+  --zen-pill-bg: #f0f0f2;
+  --hanzo-surface-active: #eaeaea;
+  --hanzo-border-focus: #a1a1aa;
+  --hanzo-accent-dim: rgba(24, 24, 27, 0.06);
+  --hanzo-accent-glow: rgba(24, 24, 27, 0.04);
+  --hanzo-shadow-sm: 0 2px 6px rgba(15, 23, 42, 0.06);
+  --hanzo-shadow-md: 0 10px 28px rgba(15, 23, 42, 0.12);
+  --hanzo-shadow-lg: 0 18px 44px rgba(15, 23, 42, 0.16);
 }

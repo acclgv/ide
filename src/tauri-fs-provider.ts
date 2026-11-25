@@ -1,9 +1,14 @@
 /**
  * TauriFileSystemProvider
  *
- * Implements VS Code's IFileSystemProvider interface backed by @tauri-apps/plugin-fs.
- * Registered for the `file://` scheme so VS Code's Explorer, editor, and search
- * all read/write real disk files through Tauri's native fs layer.
+ * Implements VS Code's IFileSystemProvider interface backed by Hanzo's native
+ * Rust filesystem IPC (`ide_stat`, `ide_list_dir`, `ide_read_file_bytes`,
+ * `ide_write_file_bytes`, `ide_mkdir`, `ide_delete_file`, `ide_rename_file`).
+ *
+ * Unlike `@tauri-apps/plugin-fs` (which rejects paths outside `$HOME/**` such
+ * as `/data/...`, `/tmp/...`, `/Volumes/...`, or secondary Windows drives),
+ * routing through `hanzo_shell::ide_mcp` works for EVERY user-opened folder
+ * across Linux (`/`), macOS (`/`), and Windows (`C:\`, `D:\`, UNC).
  */
 
 import {
@@ -19,37 +24,36 @@ import {
   type IWatchOptions,
 } from '@codingame/monaco-vscode-files-service-override'
 
-import {
-  createFileSystemProviderError,
-} from '@codingame/monaco-vscode-api/vscode/vs/platform/files/common/files'
-
+import { createFileSystemProviderError } from '@codingame/monaco-vscode-api/vscode/vs/platform/files/common/files'
 import { URI } from '@codingame/monaco-vscode-api/vscode/vs/base/common/uri'
 import { Emitter, type Event } from '@codingame/monaco-vscode-api/vscode/vs/base/common/event'
 import { Disposable } from '@codingame/monaco-vscode-api/vscode/vs/base/common/lifecycle'
-
-import {
-  readFile,
-  writeFile,
-  readDir,
-  mkdir,
-  remove,
-  rename,
-  stat,
-  exists,
-} from '@tauri-apps/plugin-fs'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from './hanzo/tauri.ts'
-
-// ─── helpers ──────────────────────────────────────────────────────────────────
+import { listen, tauri } from './hanzo/tauri.ts'
 
 function uriToPath(resource: URI): string {
-  // VS Code URIs on macOS/Linux: file:///Users/foo/bar → /Users/foo/bar
-  return resource.fsPath
+  return resource.fsPath || resource.path
+}
+
+function base64ToUint8Array(b64: string): Uint8Array {
+  const bin = atob(b64)
+  const out = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) {
+    out[i] = bin.charCodeAt(i)
+  }
+  return out
+}
+
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  const CHUNK = 0x8000
+  const parts: string[] = []
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    parts.push(String.fromCharCode(...bytes.subarray(i, i + CHUNK)))
+  }
+  return btoa(parts.join(''))
 }
 
 function mapError(err: unknown): Error {
-  // Prefer structured fields if Tauri ships them; fall back to substring match
-  // for older Tauri versions / non-English locales (B57).
   const e = err as { kind?: string; code?: string; message?: string } | null
   if (e?.kind === 'NotFound' || e?.code === 'ENOENT') {
     return createFileSystemProviderError(String(err), FileSystemProviderErrorCode.FileNotFound)
@@ -61,10 +65,10 @@ function mapError(err: unknown): Error {
     return createFileSystemProviderError(String(err), FileSystemProviderErrorCode.FileExists)
   }
   const msg = String(err)
-  if (/no such file|not found|os error 2\b/i.test(msg)) {
+  if (/no such file|not found|os error 2\b|system cannot find/i.test(msg)) {
     return createFileSystemProviderError(msg, FileSystemProviderErrorCode.FileNotFound)
   }
-  if (/permission denied|os error 13\b/i.test(msg)) {
+  if (/permission denied|access is denied|os error 13\b/i.test(msg)) {
     return createFileSystemProviderError(msg, FileSystemProviderErrorCode.NoPermissions)
   }
   if (/already exists|os error 17\b/i.test(msg)) {
@@ -73,35 +77,33 @@ function mapError(err: unknown): Error {
   return createFileSystemProviderError(msg, FileSystemProviderErrorCode.Unknown)
 }
 
-// ─── Provider ─────────────────────────────────────────────────────────────────
-
-export class TauriFileSystemProvider extends Disposable
-  implements IFileSystemProviderWithFileReadWriteCapability {
-
+export class TauriFileSystemProvider
+  extends Disposable
+  implements IFileSystemProviderWithFileReadWriteCapability
+{
   readonly capabilities =
     FileSystemProviderCapabilities.FileReadWrite |
     FileSystemProviderCapabilities.PathCaseSensitive
 
-  // Required by IFileSystemProviderWithFileReadWriteCapability — fires when capabilities change
   private readonly _onDidChangeCapabilities = this._register(new Emitter<void>())
   readonly onDidChangeCapabilities: Event<void> = this._onDidChangeCapabilities.event
 
-  // File change events — fired when we detect changes
   private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>())
   readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event
 
-  // ── stat ────────────────────────────────────────────────────────────────────
-
   async stat(resource: URI): Promise<IStat> {
+    if (!tauri()) {
+      throw createFileSystemProviderError('Not in Tauri host', FileSystemProviderErrorCode.Unavailable)
+    }
     const path = uriToPath(resource)
     try {
-      const s = await stat(path)
-      const isDir = s.isDirectory
-      const isFile = s.isFile
+      const s = await invoke<{ type: number; size: number; ctime: number; mtime: number }>('ide_stat', {
+        path,
+      })
       return {
-        type: isDir ? FileType.Directory : isFile ? FileType.File : FileType.Unknown,
-        ctime: s.birthtime ? new Date(s.birthtime).getTime() : 0,
-        mtime: s.mtime ? new Date(s.mtime).getTime() : Date.now(),
+        type: s.type as FileType,
+        ctime: s.ctime || 0,
+        mtime: s.mtime || Date.now(),
         size: s.size ?? 0,
       }
     } catch (err) {
@@ -109,111 +111,109 @@ export class TauriFileSystemProvider extends Disposable
     }
   }
 
-  // ── readdir ─────────────────────────────────────────────────────────────────
-
   async readdir(resource: URI): Promise<[string, FileType][]> {
+    if (!tauri()) return []
     const path = uriToPath(resource)
     try {
-      const entries = await readDir(path)
-      const result: [string, FileType][] = []
-      for (const entry of entries) {
-        const type = entry.isDirectory
-          ? FileType.Directory
-          : entry.isFile
-            ? FileType.File
-            : FileType.Unknown
-        result.push([entry.name, type])
-      }
-      return result
+      const listing = await invoke<{
+        path: string
+        entries: Array<{ name: string; is_dir: boolean; size: number }>
+      }>('ide_list_dir', {
+        path,
+        includeHidden: true,
+      })
+      return (listing?.entries ?? []).map((entry) => [
+        entry.name,
+        entry.is_dir ? FileType.Directory : FileType.File,
+      ])
     } catch (err) {
       throw mapError(err)
     }
   }
-
-  // ── readFile ────────────────────────────────────────────────────────────────
 
   async readFile(resource: URI): Promise<Uint8Array> {
+    if (!tauri()) return new Uint8Array(0)
     const path = uriToPath(resource)
     try {
-      const data = await readFile(path)
-      return new Uint8Array(data)
+      const b64 = await invoke<string>('ide_read_file_bytes', { path })
+      return base64ToUint8Array(b64)
     } catch (err) {
       throw mapError(err)
     }
   }
-
-  // ── writeFile ───────────────────────────────────────────────────────────────
 
   async writeFile(
     resource: URI,
     content: Uint8Array,
     _opts: IFileOverwriteOptions,
   ): Promise<void> {
+    if (!tauri()) return
     const path = uriToPath(resource)
     try {
-      await writeFile(path, content)
-      // Notify VS Code that this file changed
-      this._onDidChangeFile.fire([{
-        type: FileChangeType.UPDATED,
-        resource,
-      }])
+      await invoke('ide_write_file_bytes', {
+        path,
+        contentBase64: uint8ArrayToBase64(content),
+      })
+      this._onDidChangeFile.fire([
+        {
+          type: FileChangeType.UPDATED,
+          resource,
+        },
+      ])
     } catch (err) {
       throw mapError(err)
     }
   }
-
-  // ── mkdir ───────────────────────────────────────────────────────────────────
 
   async mkdir(resource: URI): Promise<void> {
+    if (!tauri()) return
     const path = uriToPath(resource)
     try {
-      await mkdir(path, { recursive: true })
+      await invoke('ide_mkdir', { path })
     } catch (err) {
       throw mapError(err)
     }
   }
-
-  // ── delete ──────────────────────────────────────────────────────────────────
 
   async delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
+    if (!tauri()) return
     const path = uriToPath(resource)
     try {
-      await remove(path, { recursive: opts.recursive })
+      await invoke('ide_delete_file', {
+        path,
+        recursive: opts.recursive ?? false,
+      })
+      this._onDidChangeFile.fire([{ type: FileChangeType.DELETED, resource }])
     } catch (err) {
       throw mapError(err)
     }
   }
 
-  // ── rename ──────────────────────────────────────────────────────────────────
-
   async rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
+    if (!tauri()) return
     const fromPath = uriToPath(from)
     const toPath = uriToPath(to)
     try {
-      if (!opts.overwrite) {
-        const fileExists = await exists(toPath)
-        if (fileExists) {
-          throw createFileSystemProviderError(
-            `File already exists: ${toPath}`,
-            FileSystemProviderErrorCode.FileExists,
-          )
-        }
-      }
-      await rename(fromPath, toPath)
+      await invoke('ide_rename_file', {
+        fromPath,
+        toPath,
+        overwrite: Boolean(opts.overwrite),
+      })
+      this._onDidChangeFile.fire([
+        { type: FileChangeType.DELETED, resource: from },
+        { type: FileChangeType.ADDED, resource: to },
+      ])
     } catch (err) {
-      if (err instanceof Error && 'code' in err) throw err
       throw mapError(err)
     }
   }
 
-  // ── watch ─────────────────────────────────────────────────────────────────
-
   watch(resource: URI, opts: IWatchOptions): { dispose(): void } {
+    if (!tauri()) return { dispose() {} }
     const path = uriToPath(resource)
     let watchId: string | null = null
     let unlisten: (() => void) | null = null
 
-    // Start watching asynchronously
     const setup = async () => {
       watchId = await invoke<string>('fs_watch', {
         path,
@@ -221,19 +221,28 @@ export class TauriFileSystemProvider extends Disposable
       })
 
       unlisten = await listen<{ kind: string; path: string }>('fs-change', ({ payload }) => {
-        // Match exact path or strict child — naive startsWith would match
-        // /home/user2 against a watch on /home/user (B55).
-        if (payload.path !== path && !payload.path.startsWith(path + '/')) return
+        const normalizedRoot = path.replace(/[\\/]+$/, '')
+        if (
+          payload.path !== normalizedRoot &&
+          !payload.path.startsWith(`${normalizedRoot}/`) &&
+          !payload.path.startsWith(`${normalizedRoot}\\`)
+        ) {
+          return
+        }
 
         const changeType =
-          payload.kind === 'created' ? FileChangeType.ADDED
-            : payload.kind === 'deleted' ? FileChangeType.DELETED
+          payload.kind === 'created'
+            ? FileChangeType.ADDED
+            : payload.kind === 'deleted'
+              ? FileChangeType.DELETED
               : FileChangeType.UPDATED
 
-        this._onDidChangeFile.fire([{
-          type: changeType,
-          resource: URI.file(payload.path),
-        }])
+        this._onDidChangeFile.fire([
+          {
+            type: changeType,
+            resource: URI.file(payload.path),
+          },
+        ])
       })
     }
 

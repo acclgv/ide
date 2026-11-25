@@ -206,12 +206,19 @@ pub async fn lsp_start(
     }
 
     // Spawn the language server process
-    let mut child = Command::new(config.command)
+    let mut proc_cmd = Command::new(config.command);
+    proc_cmd
         .args(config.args)
         .current_dir(&request.workspace_path)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        .stderr(Stdio::piped());
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        proc_cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+    let mut child = proc_cmd
         .spawn()
         .map_err(|e| format!("Failed to spawn {}: {e}", config.command))?;
 
